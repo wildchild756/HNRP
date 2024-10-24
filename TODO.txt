@@ -1,0 +1,6 @@
+HNRenderPipelineAssets
+HNRenderPipeline
+HNRenderPipelineGlobalSettings
+RenderGraphView
+RenderGraph
+CameraRenderer
