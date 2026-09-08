@@ -13,38 +13,6 @@ namespace HN.HNRP
 {
     public static class HNRenderPipelineUtils
     {
-        public static RendererListDesc GetOpaqueRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
-        {
-            var desc = new RendererListDesc(passNames, cullingResults, camera)
-            {
-                renderingLayerMask = renderingLayerMask,
-                rendererConfiguration = GetPerObjectLightFlags(),
-                renderQueueRange = HNRenderQueue.AllOpaque,
-                sortingCriteria = SortingCriteria.CommonOpaque,
-                stateBlock = null,
-                overrideMaterial = null,
-                excludeObjectMotionVectors = false,
-            };
-
-            return desc;
-        }
-
-        public static RendererListDesc GetTransparentRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
-        {
-            var desc = new RendererListDesc(passNames, cullingResults, camera)
-            {
-                renderingLayerMask = renderingLayerMask,
-                rendererConfiguration = GetPerObjectLightFlags(),
-                renderQueueRange = HNRenderQueue.Transparent,
-                sortingCriteria = SortingCriteria.CommonTransparent,
-                stateBlock = null,
-                overrideMaterial = null,
-                excludeObjectMotionVectors = false,
-            };
-
-            return desc;
-        }
-
         unsafe public static void GetVisibleLight(NativeArray<VisibleLight> visibleLights, int index, ref VisibleLight result)
         {
             result = UnsafeUtility.ArrayElementAsRef<VisibleLight>(visibleLights.GetUnsafePtr(), index);
@@ -69,20 +37,6 @@ namespace HN.HNRP
                 }
                 reflectionProbes[j + 1] = probe;
             }
-        }
-
-        public static PerObjectData GetPerObjectLightFlags()
-        {
-            var configuration =
-                PerObjectData.Lightmaps
-                | PerObjectData.LightProbe
-                | PerObjectData.OcclusionProbe
-                | PerObjectData.ShadowMask
-                | PerObjectData.ReflectionProbes
-                | PerObjectData.LightData
-                ;
-
-            return configuration;
         }
 
         public static void ValidateComputeBuffer(ref ComputeBuffer computeBuffer, int size, int stride, ComputeBufferType type = ComputeBufferType.Default)

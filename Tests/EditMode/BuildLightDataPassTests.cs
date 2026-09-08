@@ -155,7 +155,7 @@ namespace HN.HNRP.Tests
         #region Initialize
 
         /// <summary>
-        /// Verifies that <see cref="BuildLightDataPass.Initialize"/> correctly
+        /// Verifies that <see cref="BuildLightDataPass.PreRecord"/> correctly
         /// computes the light count from the camera context's visible lights.
         /// </summary>
         [Test]
@@ -172,7 +172,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                pass.Initialize(context);
+                pass.PreRecord(new RenderGraphAsset(), context);
 
                 int expectedMax = HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
                                 + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
@@ -210,7 +210,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                pass.Initialize(context);
+                pass.PreRecord(new RenderGraphAsset(), context);
 
                 // 628 > 528 → count = 528
                 Assert.That(context.VisibleLights.Length, Is.GreaterThan(expectedMax));
@@ -242,7 +242,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                pass.Initialize(context);
+                pass.PreRecord(new RenderGraphAsset(), context);
 
                 // If Initialize didn't throw, the context was accepted.
                 Assert.That(visibleLights.Length, Is.EqualTo(10));

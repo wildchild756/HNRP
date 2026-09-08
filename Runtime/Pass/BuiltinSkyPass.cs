@@ -128,7 +128,7 @@ namespace HN.HNRP
         /// Stores the camera context so the skybox renderer list can be built
         /// from <c>Camera</c> during <see cref="Record"/>.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             cameraContext = context;
         }
@@ -144,17 +144,22 @@ namespace HN.HNRP
         {
             if (ColorTargetSlot == null || DepthTargetSlot == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (cameraContext == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
             {
-                return;
+                IsEnabled &= false;
+            }
+
+            if(cameraContext.Camera.clearFlags != CameraClearFlags.Skybox || RenderSettings.skybox == null)
+            {
+                IsEnabled &= false;
             }
 
             using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
@@ -173,7 +178,7 @@ namespace HN.HNRP
             // render graph execution.
             if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
-                return;
+                IsEnabled &= false;
             }
 
             // Pass-through the input color / depth handles to the output slots so
@@ -197,6 +202,11 @@ namespace HN.HNRP
             builder.SetRenderFunc(
                 (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                 {
+                    if(!IsEnabled)
+                    {
+                        return;
+                    }
+
                     UnityEngine.Rendering.RendererList rendererList = ctx.renderContext.CreateSkyboxRendererList(data.camera);
                     ctx.cmd.DrawRendererList(rendererList);
                 });

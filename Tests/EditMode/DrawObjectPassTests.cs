@@ -80,13 +80,6 @@ namespace HN.HNRP.Tests
             Assert.That(pass.LightMaskSlot!.SlotName, Is.EqualTo("LightMask"));
             Assert.That(pass.LightMaskSlot.Direction, Is.EqualTo(SlotDirection.Input));
 
-            // ── Input renderer list slot: RendererList ──
-
-            Assert.That(pass.RendererListSlot, Is.Not.Null,
-                "RendererListSlot should be non-null after SetupSlots.");
-            Assert.That(pass.RendererListSlot!.SlotName, Is.EqualTo("RendererList"));
-            Assert.That(pass.RendererListSlot.Direction, Is.EqualTo(SlotDirection.Input));
-
             // ── Output pass-through slot: ColorTargetOutput ──
 
             Assert.That(pass.ColorTargetOutputSlot, Is.Not.Null,
@@ -144,7 +137,6 @@ namespace HN.HNRP.Tests
             Assert.That(pass.ProbeMaskSlot, Is.Null);
             Assert.That(pass.ProbeDatasSlot, Is.Null);
             Assert.That(pass.LightMaskSlot, Is.Null);
-            Assert.That(pass.RendererListSlot, Is.Null);
             Assert.That(pass.ColorTargetOutputSlot, Is.Null);
             Assert.That(pass.DepthTargetOutputSlot, Is.Null);
         }
@@ -366,7 +358,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// The full lifecycle of <see cref="DrawObjectPass"/> —
-        /// <see cref="Pass.SetupSlots"/>, <see cref="Pass.Initialize"/>,
+        /// <see cref="Pass.SetupSlots"/>, <see cref="Pass.PreRecord"/>,
         /// <see cref="Pass.Record"/>, <see cref="Pass.Cleanup"/> —
         /// completes without exceptions given valid state.
         /// </summary>
@@ -377,10 +369,6 @@ namespace HN.HNRP.Tests
 
             Assert.DoesNotThrow(() => pass.SetupSlots(),
                 "SetupSlots should not throw.");
-
-            Assert.DoesNotThrow(
-                () => pass.Initialize(new CameraContext(null, default)),
-                "Initialize should not throw.");
 
             Assert.DoesNotThrow(() => pass.Cleanup(),
                 "Cleanup should not throw.");
@@ -428,7 +416,6 @@ namespace HN.HNRP.Tests
         {
             var pass = new DrawObjectPass("TestDrawObject");
             pass.SetupSlots();
-            pass.Initialize(new CameraContext(null, default));
 
             // No resource nodes are connected — the IsConnected guard returns early.
             Assert.DoesNotThrow(() => pass.Record(null),

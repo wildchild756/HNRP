@@ -46,7 +46,7 @@ namespace HN.HNRP.Tests
             {
             }
 
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 

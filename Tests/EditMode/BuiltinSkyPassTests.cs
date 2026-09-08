@@ -208,7 +208,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// The full lifecycle of <see cref="BuiltinSkyPass"/> —
-        /// <see cref="Pass.SetupSlots"/>, <see cref="Pass.Initialize"/>,
+        /// <see cref="Pass.SetupSlots"/>, <see cref="Pass.PreRecord"/>,
         /// <see cref="Pass.Record"/>, <see cref="Pass.Cleanup"/> —
         /// completes without exceptions given valid state.
         /// </summary>
@@ -221,7 +221,7 @@ namespace HN.HNRP.Tests
                 "SetupSlots should not throw.");
 
             Assert.DoesNotThrow(
-                () => pass.Initialize(new CameraContext(null, default)),
+                () => pass.PreRecord(new RenderGraphAsset(), new CameraContext(null, default)),
                 "Initialize should not throw.");
 
             Assert.DoesNotThrow(() => pass.Cleanup(),

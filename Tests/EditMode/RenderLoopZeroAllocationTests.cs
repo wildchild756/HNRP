@@ -42,7 +42,7 @@ namespace HN.HNRP.Tests
             var context = new CameraContext(camera, default);
             var pass = new DrawObjectPass("opaque");
             pass.SetupSlots();
-            pass.Initialize(context);
+            pass.PreRecord(new RenderGraphAsset(), context);
 
             try
             {
@@ -112,7 +112,7 @@ namespace HN.HNRP.Tests
 
             var pass = new ClusterCullingReflectionProbePass("clusterProbe");
             pass.SetupSlots();
-            pass.Initialize(context);
+            pass.PreRecord(new RenderGraphAsset(), context);
 
             try
             {

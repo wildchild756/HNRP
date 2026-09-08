@@ -361,28 +361,5 @@ namespace HN.HNRP
         protected override bool IsValueValid(ComputeBufferHandle value) => value.IsValid();
     }
 
-    /// <summary>
-    /// A <see cref="PassSlot{T}"/> that represents a renderer list resource.
-    /// </summary>
-    public class RendererListSlot : PassSlot<RendererListHandle>
-    {
-        /// <summary>
-        /// Initializes a new instance of the <see cref="RendererListSlot"/> class.
-        /// </summary>
-        /// <param name="slotName">The name of the renderer list slot.</param>
-        /// <param name="direction">Whether this is an input or output slot.</param>
-        public RendererListSlot(string slotName, SlotDirection direction)
-            : base(slotName, direction)
-        {
-        }
-
-        /// <inheritdoc />
-        /// <remarks>
-        /// A <see cref="RendererListHandle"/> is valid only when it references an
-        /// actual render graph renderer list — a default handle is not valid.
-        /// </remarks>
-        protected override bool IsValueValid(RendererListHandle value) => value.IsValid();
-    }
-
     #endregion
 }

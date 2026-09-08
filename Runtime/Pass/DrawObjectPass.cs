@@ -5,6 +5,7 @@
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering.RendererUtils;
+using UnityEngine.Experimental.Rendering;
 
 namespace HN.HNRP
 {
@@ -66,7 +67,7 @@ namespace HN.HNRP
         /// Default: full-resolution LDR.
         /// </summary>
         [SerializeField]
-        private TextureResourceParams m_ColorTargetParams = TextureResourceParams.CreateDefault();
+        private TextureResourceParams m_ColorTargetParams;
 
         /// <summary>
         /// Parameters for the depth target allocated when the
@@ -78,11 +79,10 @@ namespace HN.HNRP
 
         /// <summary>
         /// Parameters for the renderer list created when the
-        /// <see cref="RendererListSlot"/> input is not connected / valid.
         /// Default: opaque queue, layer mask <c>0x00000001</c>.
         /// </summary>
         [SerializeField]
-        private RendererListParams m_RendererListParams = RendererListParams.CreateDefault();
+        private RendererListParams m_RendererListParams;
 
         /// <summary>
         /// Whether the render function should set the probe / light / light-datas
@@ -186,12 +186,6 @@ namespace HN.HNRP
         public ComputeBufferSlot? LightMaskSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input renderer list slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
-        /// </summary>
-        public RendererListSlot? RendererListSlot { get; private set; }
-
-        /// <summary>
         /// Gets the output color target slot (pass-through of the resolved
         /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
         /// Available after <see cref="Pass.SetupSlots"/> is called.
@@ -218,8 +212,6 @@ namespace HN.HNRP
         /// </summary>
         public DrawObjectPass()
         {
-            m_DepthTargetParams = TextureResourceParams.CreateDefault();
-            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
         }
 
         /// <summary>
@@ -231,8 +223,6 @@ namespace HN.HNRP
         public DrawObjectPass(string passName)
             : base(passName)
         {
-            m_DepthTargetParams = TextureResourceParams.CreateDefault();
-            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
         }
 
         /// <inheritdoc />
@@ -266,8 +256,6 @@ namespace HN.HNRP
             RegisterSlot(ProbeDatasSlot);
             LightMaskSlot = new ComputeBufferSlot("LightMask", SlotDirection.Input);
             RegisterSlot(LightMaskSlot);
-            RendererListSlot = new RendererListSlot("RendererList", SlotDirection.Input);
-            RegisterSlot(RendererListSlot);
 
             ColorTargetOutputSlot = new TextureSlot("ColorTargetOutput", SlotDirection.Output);
             RegisterSlot(ColorTargetOutputSlot);
@@ -280,28 +268,35 @@ namespace HN.HNRP
         /// Stores the camera context so renderer list / lighting globals can be
         /// resolved during <see cref="Record"/>.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             cameraContext = context;
+
+            m_ColorTargetParams = TextureResourceParams.CreateDefault();
+            var format = template.Settings.AllowHDR ? SystemInfo.GetGraphicsFormat(DefaultFormat.HDR) : SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
+            m_ColorTargetParams.ColorFormat = format;
+
+            m_DepthTargetParams = TextureResourceParams.CreateDefault();
+            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
         }
 
         /// <inheritdoc />
         public override void Record(RenderGraph renderGraph)
         {
-            if (ColorTargetSlot == null || DepthTargetSlot == null || RendererListSlot == null)
+            if (ColorTargetSlot == null || DepthTargetSlot == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (cameraContext == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             // ── Required inputs: color / depth targets + renderer list ──
@@ -322,17 +317,14 @@ namespace HN.HNRP
 
             if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
-                return;
+                IsEnabled &= false;
             }
 
-            bool useInputRendererList = RendererListSlot.IsConnected && RendererListSlot.HasHandle;
-            RendererListHandle rendererList = useInputRendererList
-                ? RendererListSlot.ReadHandle()
-                : CreateRendererList(renderGraph);
+            RendererListHandle rendererList = CreateRendererList(renderGraph);
 
             if (!rendererList.IsValid())
             {
-                return;
+                IsEnabled &= false;
             }
 
             // Pass-through the resolved color / depth handles to the output slots
@@ -423,6 +415,11 @@ namespace HN.HNRP
             builder.SetRenderFunc(
                 (DrawObjectPassData data, RenderGraphContext ctx) =>
                 {
+                    if(!IsEnabled)
+                    {
+                        return;
+                    }
+
                     ctx.cmd.SetViewProjectionMatrices(data.viewMatrix, data.projMatrix);
 
                     if (data.setLightGlobals)

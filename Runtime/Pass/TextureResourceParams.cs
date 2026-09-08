@@ -37,6 +37,11 @@ namespace HN.HNRP
         public DepthBits DepthBits;
 
         /// <summary>
+        /// Texture Array Slices 数。
+        /// </summary>
+        public int Slices;
+
+        /// <summary>
         /// 相对相机像素尺寸的缩放系数。默认全分辨率。
         /// 当 <see cref="Width"/> 与 <see cref="Height"/> 均为正时被忽略（固定尺寸模式）。
         /// </summary>
@@ -122,11 +127,13 @@ namespace HN.HNRP
             int texHeight = Height > 0
                 ? Height
                 : Mathf.Max(1, Mathf.RoundToInt(camera.pixelHeight * TextureScale.y));
+            Slices = 1;
 
             return new TextureDesc(texWidth, texHeight, false, false)
             {
                 colorFormat = ColorFormat,
                 depthBufferBits = DepthBits,
+                slices = Slices,
                 filterMode = FilterMode,
                 wrapMode = WrapMode,
                 dimension = TextureDimension,

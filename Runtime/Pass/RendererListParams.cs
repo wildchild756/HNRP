@@ -56,11 +56,60 @@ namespace HN.HNRP
             Camera camera)
         {
             return ListKind == RenderListKind.Opaque
-                ? HNRenderPipelineUtils.GetOpaqueRendererListDesc(
+                ? GetOpaqueRendererListDesc(
                     passNames, cullingResults, camera, RenderingLayerMask)
-                : HNRenderPipelineUtils.GetTransparentRendererListDesc(
+                : GetTransparentRendererListDesc(
                     passNames, cullingResults, camera, RenderingLayerMask);
         }
+
+
+        public static RendererListDesc GetOpaqueRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
+        {
+            var desc = new RendererListDesc(passNames, cullingResults, camera)
+            {
+                renderingLayerMask = renderingLayerMask,
+                rendererConfiguration = GetPerObjectLightFlags(),
+                renderQueueRange = HNRenderQueue.AllOpaque,
+                sortingCriteria = SortingCriteria.CommonOpaque,
+                stateBlock = null,
+                overrideMaterial = null,
+                excludeObjectMotionVectors = false,
+            };
+
+            return desc;
+        }
+
+        public static RendererListDesc GetTransparentRendererListDesc(ShaderTagId[] passNames, CullingResults cullingResults, Camera camera, uint renderingLayerMask)
+        {
+            var desc = new RendererListDesc(passNames, cullingResults, camera)
+            {
+                renderingLayerMask = renderingLayerMask,
+                rendererConfiguration = GetPerObjectLightFlags(),
+                renderQueueRange = HNRenderQueue.Transparent,
+                sortingCriteria = SortingCriteria.CommonTransparent,
+                stateBlock = null,
+                overrideMaterial = null,
+                excludeObjectMotionVectors = false,
+            };
+
+            return desc;
+        }
+
+        public static PerObjectData GetPerObjectLightFlags()
+        {
+            var configuration =
+                PerObjectData.Lightmaps
+                | PerObjectData.LightProbe
+                | PerObjectData.OcclusionProbe
+                | PerObjectData.ShadowMask
+                | PerObjectData.ReflectionProbes
+                | PerObjectData.LightData
+                ;
+
+            return configuration;
+        }
+
+
     }
 
     /// <summary>

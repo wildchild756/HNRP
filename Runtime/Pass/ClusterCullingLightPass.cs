@@ -110,7 +110,7 @@ namespace HN.HNRP
         /// accessed during <see cref="Record"/>. The compute shader is resolved from
         /// <see cref="CameraContext.RuntimeResources"/>.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             m_CameraContext = context;
         }
@@ -122,19 +122,19 @@ namespace HN.HNRP
         /// cluster culling compute shader, and publishes the output handle.
         ///
         /// The compute shader and camera matrices come from the camera context
-        /// set during <see cref="Initialize"/>.
+        /// set during <see cref="PreRecord"/>.
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
             if (ClusterCullingLightMaskBufferSlot == null
                 || LightDatasBufferSlot == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (m_CameraContext == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             ComputeShader clusterCullingLightCS =
@@ -144,13 +144,13 @@ namespace HN.HNRP
                 Debug.LogError(
                     "Cluster Culling Light Compute Shader is null. " +
                     "Ensure it is assigned in HNRenderPipelineRuntimeResources.");
-                return;
+                IsEnabled &= false;
             }
 
             Camera camera = m_CameraContext.Camera;
             if (camera == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             using (var builder = renderGraph.AddRenderPass<ClusterCullingLightPassData>(
@@ -267,6 +267,11 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ClusterCullingLightPassData data, RenderGraphContext ctx) =>
                     {
+                        if(!IsEnabled)
+                        {
+                            return;
+                        }
+
                         ctx.cmd.SetComputeBufferParam(
                             data.clusterCullingLightCS,
                             data.clusterCullingLightKernel,

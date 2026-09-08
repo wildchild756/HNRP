@@ -139,8 +139,6 @@ namespace HN.HNRP.Tests
                 "forwardOpaque.ColorTarget should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.DepthTargetSlot!.IsConnected, Is.False,
                 "forwardOpaque.DepthTarget should be unconnected — the pass allocates it locally.");
-            Assert.That(forwardOpaque.RendererListSlot!.IsConnected, Is.False,
-                "forwardOpaque.RendererList should be unconnected — the pass allocates it locally.");
             Assert.That(forwardOpaque.LightDatasSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(forwardOpaque.ReflectionProbeAtlasSlot!.IsConnected, Is.True,
@@ -169,8 +167,6 @@ namespace HN.HNRP.Tests
                 "transparency.ColorTarget should be connected through sky.ColorTargetOutput.");
             Assert.That(transparency.DepthTargetSlot!.IsConnected, Is.True,
                 "transparency.DepthTarget should be connected through sky.DepthTargetOutput.");
-            Assert.That(transparency.RendererListSlot!.IsConnected, Is.False,
-                "transparency.RendererList should be unconnected — the pass allocates it locally.");
             Assert.That(transparency.LightDatasSlot!.IsConnected, Is.True,
                 "transparency.LightDatas should be connected through a slot connection from buildLight.");
             Assert.That(transparency.ReflectionProbeAtlasSlot!.IsConnected, Is.True,

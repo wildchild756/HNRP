@@ -85,7 +85,7 @@ namespace HN.HNRP
         }
 
         /// <inheritdoc />
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             cameraContext = context;
             Flip = context.Flip;
@@ -96,12 +96,12 @@ namespace HN.HNRP
         {
             if (colorTargetSlot == null || !colorTargetSlot.IsConnected)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (cameraContext == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             TextureHandle backBuffer;
@@ -144,6 +144,11 @@ namespace HN.HNRP
             builder.SetRenderFunc(
                 (RenderOutputData data, RenderGraphContext ctx) =>
                 {
+                    if(!IsEnabled)
+                    {
+                        return;
+                    }
+
                     var propertyBlock =
                         ctx.renderGraphPool.GetTempMaterialPropertyBlock();
                     var scaleBias = data.flip

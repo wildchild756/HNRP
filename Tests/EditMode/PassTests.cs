@@ -30,7 +30,7 @@ namespace HN.HNRP.Tests
                 SetupSlotsCalled = true;
             }
 
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
                 InitializeCalled = true;
             }
@@ -81,7 +81,7 @@ namespace HN.HNRP.Tests
                 "SetupSlots should be called first to declare slots.");
 
             // Phase 2: Initialize — load resources with camera context
-            pass.Initialize(new CameraContext(null, default));
+            pass.PreRecord(new RenderGraphAsset(), new CameraContext(null, default));
             Assert.That(pass.InitializeCalled, Is.True,
                 "Initialize should be called after SetupSlots to load resources.");
 

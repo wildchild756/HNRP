@@ -50,7 +50,7 @@ namespace HN.HNRP.Tests
             }
 
             /// <inheritdoc />
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 
@@ -94,7 +94,7 @@ namespace HN.HNRP.Tests
             }
 
             /// <inheritdoc />
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 
@@ -142,7 +142,7 @@ namespace HN.HNRP.Tests
             }
 
             /// <inheritdoc />
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 
@@ -193,7 +193,7 @@ namespace HN.HNRP.Tests
             }
 
             /// <inheritdoc />
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 
@@ -245,7 +245,7 @@ namespace HN.HNRP.Tests
             }
 
             /// <inheritdoc />
-            public override void Initialize(CameraContext context)
+            public override void PreRecord(RenderGraphAsset template, CameraContext context)
             {
             }
 

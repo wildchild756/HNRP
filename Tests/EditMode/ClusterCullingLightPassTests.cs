@@ -212,7 +212,7 @@ namespace HN.HNRP.Tests
         #region Initialize
 
         /// <summary>
-        /// Verifies that <see cref="ClusterCullingLightPass.Initialize"/>
+        /// Verifies that <see cref="ClusterCullingLightPass.PreRecord"/>
         /// accepts a valid <see cref="CameraContext"/> without throwing.
         /// </summary>
         [Test]
@@ -231,7 +231,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.DoesNotThrow(() => pass.Initialize(context));
+                Assert.DoesNotThrow(() => pass.PreRecord(new RenderGraphAsset(), context));
             }
             finally
             {
@@ -453,7 +453,7 @@ namespace HN.HNRP.Tests
                 Assert.DoesNotThrow(() =>
                 {
                     pass.SetupSlots();
-                    pass.Initialize(context);
+                    pass.PreRecord(new RenderGraphAsset(), context);
                     pass.Cleanup();
                 });
             }

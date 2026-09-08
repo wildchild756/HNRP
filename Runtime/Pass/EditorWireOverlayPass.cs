@@ -104,7 +104,7 @@ namespace HN.HNRP
         /// Stores the camera context so the camera can be accessed during
         /// <see cref="Record"/> for the <c>DrawWireOverlay</c> call.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             cameraContext = context;
         }
@@ -127,23 +127,23 @@ namespace HN.HNRP
 #if UNITY_EDITOR
             if (ColorTargetSlot == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (cameraContext == null)
             {
-                return;
+                IsEnabled &= false;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera.cameraType != CameraType.SceneView)
             {
-                return;
+                IsEnabled &= false;
             }
 
             if (!ColorTargetSlot.IsConnected)
             {
-                return;
+                IsEnabled &= false;
             }
 
             using var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>(
@@ -159,7 +159,7 @@ namespace HN.HNRP
             // failed so the producer pass skipped recording).
             if (!colorTarget.IsValid())
             {
-                return;
+                IsEnabled &= false;
             }
 
             // Pass-through the input color handle to the output slot so
@@ -177,6 +177,11 @@ namespace HN.HNRP
             builder.SetRenderFunc(
                 (EditorWireOverlayPassData data, RenderGraphContext ctx) =>
                 {
+                    if(!IsEnabled)
+                    {
+                        return;
+                    }
+
                     ctx.renderContext.ExecuteCommandBuffer(ctx.cmd);
                     ctx.cmd.Clear();
                     ctx.renderContext.DrawWireOverlay(data.camera);

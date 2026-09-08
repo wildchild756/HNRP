@@ -201,7 +201,7 @@ namespace HN.HNRP.Tests
         #region Initialize
 
         /// <summary>
-        /// Verifies that <see cref="ClusterCullingReflectionProbePass.Initialize"/>
+        /// Verifies that <see cref="ClusterCullingReflectionProbePass.PreRecord"/>
         /// stores the <see cref="CameraContext"/> without throwing.
         /// </summary>
         [Test]
@@ -215,7 +215,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.DoesNotThrow(() => pass.Initialize(context));
+                Assert.DoesNotThrow(() => pass.PreRecord(new RenderGraphAsset(), context));
             }
             finally
             {
@@ -244,7 +244,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.DoesNotThrow(() => pass.Initialize(context));
+                Assert.DoesNotThrow(() => pass.PreRecord(new RenderGraphAsset(), context));
             }
             finally
             {
@@ -323,7 +323,7 @@ namespace HN.HNRP.Tests
 
         /// <summary>
         /// The full lifecycle — <see cref="Pass.SetupSlots"/>,
-        /// <see cref="Pass.Initialize"/>, <see cref="Pass.Cleanup"/> —
+        /// <see cref="Pass.PreRecord"/>, <see cref="Pass.Cleanup"/> —
         /// completes without exceptions given valid state.
         /// </summary>
         [Test]
@@ -339,7 +339,7 @@ namespace HN.HNRP.Tests
 
             try
             {
-                Assert.DoesNotThrow(() => pass.Initialize(context),
+                Assert.DoesNotThrow(() => pass.PreRecord(new RenderGraphAsset(), context),
                     "Initialize should not throw.");
             }
             finally

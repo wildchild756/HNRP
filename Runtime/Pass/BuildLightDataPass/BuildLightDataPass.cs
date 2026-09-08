@@ -105,7 +105,7 @@ namespace HN.HNRP
         /// The maximum light count is derived from the pipeline asset constants
         /// at initialization time.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             m_Context = context;
             m_VisibleLights = context.VisibleLights;
@@ -158,6 +158,11 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
+                        if(!IsEnabled)
+                        {
+                            return;
+                        }
+                        
                         data.jobHandle.Complete();
                         ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
                         data.lightDatas.Dispose();

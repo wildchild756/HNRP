@@ -125,8 +125,6 @@ namespace HN.HNRP.Tests
                 "opaque.ColorTarget should be unconnected — the pass allocates it locally.");
             Assert.That(opaque.DepthTargetSlot!.IsConnected, Is.False,
                 "opaque.DepthTarget should be unconnected — the pass allocates it locally.");
-            Assert.That(opaque.RendererListSlot!.IsConnected, Is.False,
-                "opaque.RendererList should be unconnected — the pass allocates it locally.");
 
             var finalBlit = result.Find(p => p.PassName == "finalBlit") as RenderOutputPass;
             Assert.That(finalBlit, Is.Not.Null,

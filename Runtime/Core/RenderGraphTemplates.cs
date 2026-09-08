@@ -93,7 +93,12 @@ namespace HN.HNRP
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
                 },
-                new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
+                new RenderGraphSettings 
+                { 
+                    SHEvalMode = SHEvalMode.PerPixel, 
+                    AllowHDR = true,
+                }
+            );
         }
 
         private static void PopulateReflectionGraph(RenderGraphAsset g)
@@ -130,7 +135,12 @@ namespace HN.HNRP
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
                 },
-                new RenderGraphSettings { SHEvalMode = SHEvalMode.PerPixel, AllowHDR = true });
+                new RenderGraphSettings 
+                { 
+                    SHEvalMode = SHEvalMode.PerPixel, 
+                    AllowHDR = true,
+                }
+            );
         }
 
         private static void PopulatePreviewGraph(RenderGraphAsset g)
@@ -145,7 +155,12 @@ namespace HN.HNRP
                 {
                     SlotConnection.Create("opaque", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                 },
-                new RenderGraphSettings { SHEvalMode = SHEvalMode.PerVertex, AllowHDR = false });
+                new RenderGraphSettings 
+                { 
+                    SHEvalMode = SHEvalMode.PerPixel, 
+                    AllowHDR = true,
+                }
+            );
         }
     }
 }

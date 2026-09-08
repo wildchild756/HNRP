@@ -200,7 +200,7 @@ namespace HN.HNRP
         /// Stores the camera context and resolves the cluster culling compute
         /// shader from <see cref="CameraContext.RuntimeResources"/>.
         /// </remarks>
-        public override void Initialize(CameraContext context)
+        public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             m_Context = context;
 
@@ -228,13 +228,13 @@ namespace HN.HNRP
                 Debug.LogError(
                     "Cluster Culling Reflection Probe Compute Shader is null. " +
                     "Ensure HNRenderPipelineRuntimeResources is assigned in the pipeline asset.");
-                return;
+                IsEnabled &= false;
             }
 
             if (m_Context == null)
             {
                 Debug.LogError("CameraContext is null. Initialize must be called before Record.");
-                return;
+                IsEnabled &= false;
             }
 
             // ── Collect visible probes (baked + realtime) and pack them into the
@@ -484,6 +484,11 @@ namespace HN.HNRP
                 builder.SetRenderFunc(
                     (ClusterCullingReflectionProbePassData data, RenderGraphContext ctx) =>
                     {
+                        if(!IsEnabled)
+                        {
+                            return;
+                        }
+
                         // Upload probe data for the culling dispatch and the shader.
                         ctx.cmd.SetBufferData(data.cullingDatasBuffer, m_CullingDatas);
                         ctx.cmd.SetBufferData(data.sampleDatasBuffer, m_SampleDatas);

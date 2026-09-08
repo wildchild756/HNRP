@@ -21,7 +21,7 @@ namespace HN.HNRP
     /// <para>Lifecycle order:</para>
     /// <list type="number">
     ///   <item><see cref="SetupSlots"/> — declare input/output slots (e.g. TextureSlot, ComputeBufferSlot)</item>
-    ///   <item><see cref="Initialize"/> — load resources using camera-specific context</item>
+    ///   <item><see cref="PreRecord"/> — load resources using camera-specific context</item>
     ///   <item><see cref="Record"/> — record render commands into the render graph</item>
     ///   <item><see cref="Cleanup"/> — release resources held by this pass</item>
     /// </list>
@@ -118,7 +118,7 @@ namespace HN.HNRP
 
         /// <summary>
         /// Declares input and output slots for this pass.
-        /// Called once during setup, before <see cref="Initialize"/>.
+        /// Called once during setup, before <see cref="PreRecord"/>.
         /// </summary>
         /// <remarks>
         /// Slots define data dependencies — the render graph uses them to derive
@@ -200,7 +200,7 @@ namespace HN.HNRP
         /// <param name="context">
         /// The camera rendering context providing camera-specific data.
         /// </param>
-        public abstract void Initialize(CameraContext context);
+        public abstract void PreRecord(RenderGraphAsset template, CameraContext context);
 
         /// <summary>
         /// Records render commands into the render graph.
