@@ -148,7 +148,7 @@ namespace HN.HNRP
             g.SetDefinition(
                 new List<Pass>
                 {
-                    new DrawObjectPass("opaque") { SetLightGlobals = false },
+                    new DrawObjectPass("opaque"),
                     new RenderOutputPass("finalBlit"),
                 },
                 new List<SlotConnection>

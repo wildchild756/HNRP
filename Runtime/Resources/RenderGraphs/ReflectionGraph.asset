@@ -13,13 +13,13 @@ MonoBehaviour:
   m_Name: ReflectionGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - rid: 2663563119090466980
-  - rid: 2663563119090466981
-  - rid: 2663563119090466982
-  - rid: 2663563119090466983
-  - rid: 2663563119090466984
-  - rid: 2663563119090466985
-  - rid: 2663563119090466986
+  - rid: 6885483949488603169
+  - rid: 6885483949488603170
+  - rid: 6885483949488603171
+  - rid: 6885483949488603172
+  - rid: 6885483949488603173
+  - rid: 6885483949488603174
+  - rid: 6885483949488603175
   m_Connections:
   - m_SourcePass: forwardOpaque
     m_SourceSlot: ColorTargetOutput
@@ -71,97 +71,103 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466980
+    - rid: 6885483949488603169
       type: {class: BuildLightDataPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: buildLight
         m_IsEnabled: 1
-    - rid: 2663563119090466981
+    - rid: 6885483949488603170
       type: {class: ClusterCullingLightPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: clusterLight
         m_IsEnabled: 1
-    - rid: 2663563119090466982
+    - rid: 6885483949488603171
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: forwardOpaque
         m_IsEnabled: 1
-        m_ColorTargetParams:
-          ColorFormat: 8
+        colorTargetParams:
+          ColorFormat: 0
           DepthBits: 0
-          TextureScale: {x: 1, y: 1}
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_DepthTargetParams:
-          ColorFormat: 8
-          DepthBits: 32
-          TextureScale: {x: 1, y: 1}
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        depthTargetParams:
+          ColorFormat: 0
+          DepthBits: 0
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_RendererListParams:
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        rendererListParams:
           ListKind: 0
           RenderingLayerMask: 1
-        m_SetLightGlobals: 1
-    - rid: 2663563119090466983
+        setLightGlobals: 1
+        receiveShadow: 1
+    - rid: 6885483949488603172
       type: {class: BuiltinSkyPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: sky
         m_IsEnabled: 1
-    - rid: 2663563119090466984
+    - rid: 6885483949488603173
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: transparency
         m_IsEnabled: 1
-        m_ColorTargetParams:
-          ColorFormat: 8
+        colorTargetParams:
+          ColorFormat: 0
           DepthBits: 0
-          TextureScale: {x: 1, y: 1}
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_DepthTargetParams:
-          ColorFormat: 8
-          DepthBits: 32
-          TextureScale: {x: 1, y: 1}
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        depthTargetParams:
+          ColorFormat: 0
+          DepthBits: 0
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_RendererListParams:
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        rendererListParams:
           ListKind: 1
           RenderingLayerMask: 1
-        m_SetLightGlobals: 1
-    - rid: 2663563119090466985
+        setLightGlobals: 1
+        receiveShadow: 1
+    - rid: 6885483949488603174
       type: {class: EditorWireOverlayPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: wireOverlay
         m_IsEnabled: 1
-    - rid: 2663563119090466986
+    - rid: 6885483949488603175
       type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: finalBlit

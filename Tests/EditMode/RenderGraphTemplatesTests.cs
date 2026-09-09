@@ -165,8 +165,6 @@ namespace HN.HNRP.Tests
             }
 
             var opaque = (DrawObjectPass)asset.Passes.First(p => p.PassName == "opaque");
-            Assert.That(opaque.SetLightGlobals, Is.False,
-                "Preview opaque pass should not set lighting globals.");
             Assert.That(opaque.RendererListParams.ListKind, Is.EqualTo(RenderListKind.Opaque),
                 "Preview opaque pass should allocate an opaque renderer list.");
             Assert.That(opaque.DepthTargetParams.DepthBits,

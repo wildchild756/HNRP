@@ -52,6 +52,42 @@ namespace HN.HNRP
             set => renderingLayerMask = value;
         }
 
+        public bool EnableShadow
+        {
+            get => enableShadow;
+            set => enableShadow = value;
+        }
+
+        public CascadeCountType CascadeCount
+        {
+            get => cascadeCount;
+            set => cascadeCount = value;
+        }
+
+        public ResolutionType CascadeResolution
+        {
+            get => cascadeResolution;
+            set => cascadeResolution = value;
+        }
+
+        public List<float> CascadeSplits
+        {
+            get => cascadeSplits;
+            set => cascadeSplits = value;
+        }
+
+        public ShadowUpdateModeType ShadowUpdateMode
+        {
+            get => shadowUpdateMode;
+            set => shadowUpdateMode = value;
+        }
+
+        public List<int> CascadeTimeSlices
+        {
+            get => cascadeTimeSlices;
+            set => cascadeTimeSlices = value;
+        }
+
 
         [SerializeField]
         private Light builtinLight;
@@ -64,6 +100,54 @@ namespace HN.HNRP
 
         [SerializeField]
         private uint renderingLayerMask = 1;
+
+        [SerializeField]
+        private bool enableShadow = true;
+
+        [SerializeField]
+        private CascadeCountType cascadeCount = CascadeCountType.Four;
+
+        [SerializeField]
+        private ResolutionType cascadeResolution = ResolutionType.Medium;
+
+        [SerializeField]
+        private List<float> cascadeSplits = new List<float>((int)CascadeCountType.Eight)
+        {
+            1f, 4f, 10f, 30f, 50f, 100f, 300f, 1000f
+        };
+
+        [SerializeField]
+        private ShadowUpdateModeType shadowUpdateMode = ShadowUpdateModeType.EveryFrame;
+
+        [SerializeField]
+        private List<int> cascadeTimeSlices = new List<int>((int)CascadeCountType.Eight)
+        {
+            0, 0, 2, 2, 4, 4, 8, 8
+        };
+
+
+        public enum CascadeCountType
+        {
+            One = 1,
+            Two = 2,
+            Four = 4,
+            Eight = 8
+        }
+
+        public enum ResolutionType
+        {
+            Low = 512,
+            Medium = 1024,
+            High = 2048,
+            Ultra = 4096
+        }
+
+        public enum ShadowUpdateModeType
+        {
+            EveryFrame,
+            OnDemand,
+            Custom
+        }
     }
 
 

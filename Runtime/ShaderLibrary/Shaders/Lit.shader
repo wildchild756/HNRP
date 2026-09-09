@@ -67,6 +67,8 @@ Shader "HNRP/Lit"
             
             // HNRP Keywords
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
+            #pragma multi_compile _ CASCADE_SHADOW_MAP
+            #pragma multi_compile _ SCREEN_SPACE_SHADOW_MAP
             #pragma multi_compile _ CLUSTER_CULLING_REFLECTION_PROBE
             #pragma multi_compile _ CLUSTER_CULLING_LIGHT
 

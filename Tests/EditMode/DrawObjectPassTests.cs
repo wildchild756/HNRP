@@ -177,7 +177,6 @@ namespace HN.HNRP.Tests
                     ListKind = RenderListKind.Transparent,
                     RenderingLayerMask = 0x00000007,
                 },
-                SetLightGlobals = false,
             };
             TextureResourceParams sourceDepth = source.DepthTargetParams;
             sourceDepth.DepthBits = UnityEngine.Rendering.DepthBits.Depth16;
@@ -192,8 +191,6 @@ namespace HN.HNRP.Tests
                 "CopyFrom should copy the rendering layer mask.");
             Assert.That(clone.DepthTargetParams.DepthBits, Is.EqualTo(UnityEngine.Rendering.DepthBits.Depth16),
                 "CopyFrom should copy the depth target parameters.");
-            Assert.That(clone.SetLightGlobals, Is.False,
-                "CopyFrom should copy the light-globals flag.");
         }
 
         #endregion
@@ -248,31 +245,6 @@ namespace HN.HNRP.Tests
             pass.RenderingLayerMask = 0x00000007;
 
             Assert.That(pass.RenderingLayerMask, Is.EqualTo(0x00000007u));
-        }
-
-        /// <summary>
-        /// <see cref="DrawObjectPass.SetLightGlobals"/> defaults to <c>true</c>
-        /// so opaque graphs bind probe / light / light-data globals by default.
-        /// </summary>
-        [Test]
-        public void SetLightGlobals_DefaultsTrue()
-        {
-            var pass = new DrawObjectPass("TestDrawObject");
-
-            Assert.That(pass.SetLightGlobals, Is.True);
-        }
-
-        /// <summary>
-        /// <see cref="DrawObjectPass.SetLightGlobals"/> is writable — preview
-        /// graphs (which have no cluster culling data) set it to <c>false</c>.
-        /// </summary>
-        [Test]
-        public void SetLightGlobals_CanBeSet()
-        {
-            var pass = new DrawObjectPass("TestDrawObject");
-            pass.SetLightGlobals = false;
-
-            Assert.That(pass.SetLightGlobals, Is.False);
         }
 
         #endregion

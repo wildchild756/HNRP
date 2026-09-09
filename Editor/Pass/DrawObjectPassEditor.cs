@@ -23,7 +23,9 @@ namespace HN.HNRP.Editor
         /// <inheritdoc />
         protected override void DrawParameters(SerializedProperty passProp, Pass pass)
         {
-            SerializedProperty colorTarget = passProp.FindPropertyRelative("m_ColorTargetParams");
+            var s = passProp.FindPropertyRelative("ColorTargetSlot");
+            Debug.Log(s);
+            SerializedProperty colorTarget = passProp.FindPropertyRelative("colorTargetParams");
             if (colorTarget != null)
             {
                 EditorGUILayout.PropertyField(colorTarget, new GUIContent(
@@ -31,7 +33,7 @@ namespace HN.HNRP.Editor
                     "输入槽未连接时本地分配的颜色缓冲参数。"));
             }
 
-            SerializedProperty depthTarget = passProp.FindPropertyRelative("m_DepthTargetParams");
+            SerializedProperty depthTarget = passProp.FindPropertyRelative("depthTargetParams");
             if (depthTarget != null)
             {
                 EditorGUILayout.PropertyField(depthTarget, new GUIContent(
@@ -39,7 +41,7 @@ namespace HN.HNRP.Editor
                     "输入槽未连接时本地分配的深度缓冲参数。"));
             }
 
-            SerializedProperty rendererList = passProp.FindPropertyRelative("m_RendererListParams");
+            SerializedProperty rendererList = passProp.FindPropertyRelative("rendererListParams");
             if (rendererList != null)
             {
                 EditorGUILayout.PropertyField(rendererList, new GUIContent(
@@ -47,7 +49,7 @@ namespace HN.HNRP.Editor
                     "输入槽未连接时本地构建的渲染器列表参数（队列范围 / 渲染层掩码）。"));
             }
 
-            SerializedProperty setLightGlobals = passProp.FindPropertyRelative("m_SetLightGlobals");
+            SerializedProperty setLightGlobals = passProp.FindPropertyRelative("setLightGlobals");
             if (setLightGlobals != null)
             {
                 EditorGUILayout.PropertyField(setLightGlobals, new GUIContent(
@@ -61,10 +63,7 @@ namespace HN.HNRP.Editor
         /// </summary>
         private static readonly IPassPreset[] s_Presets =
         {
-            new PassPreset<DrawObjectPass>("Default Opaque", new DrawObjectPass
-            {
-                SetLightGlobals = true,
-            }),
+            new PassPreset<DrawObjectPass>("Default Opaque", new DrawObjectPass()),
             new PassPreset<DrawObjectPass>("Transparent", new DrawObjectPass
             {
                 RendererListParams = new RendererListParams
@@ -72,11 +71,6 @@ namespace HN.HNRP.Editor
                     ListKind = RenderListKind.Transparent,
                     RenderingLayerMask = 0x00000001,
                 },
-                SetLightGlobals = true,
-            }),
-            new PassPreset<DrawObjectPass>("No Light Globals", new DrawObjectPass
-            {
-                SetLightGlobals = false,
             }),
         };
     }

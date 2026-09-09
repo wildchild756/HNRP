@@ -8,12 +8,15 @@ namespace HN.HNRP
     public static class ShaderPassNames
     {
         public static readonly string ForwardStr = "Forward";
+        public static readonly string ShadowCasterStr = "ShadowCaster";
 
 
         public static readonly ShaderTagId ForwardName = new ShaderTagId(ForwardStr);
+        public static readonly ShaderTagId ShadowCasterName = new ShaderTagId(ShadowCasterStr);
 
 
         public static readonly ShaderTagId[] AllForwardNames = new[] { ForwardName };
+        public static readonly ShaderTagId[] AllShadowCasterNames = new[] { ShadowCasterName };
     }
 
 
@@ -74,6 +77,8 @@ namespace HN.HNRP
     {
         public static readonly string evaluateSHMixed = "EVALUATE_SH_MIXED";
         public static readonly string evaluateSHVertex = "EVALUATE_SH_VERTEX";
+        public static readonly string cascadeShadowMap = "CASCADE_SHADOW_MAP";
+        public static readonly string screenSpaceShadowMap = "SCREEN_SPACE_SHADOW_MAP";
         public static readonly string clusterCullingReflectionProbe = "CLUSTER_CULLING_REFLECTION_PROBE";
         public static readonly string clusterCullingLight = "CLUSTER_CULLING_LIGHT";
     }

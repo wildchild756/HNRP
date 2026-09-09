@@ -67,7 +67,7 @@ namespace HN.HNRP
         /// Default: full-resolution LDR.
         /// </summary>
         [SerializeField]
-        private TextureResourceParams m_ColorTargetParams;
+        private TextureResourceParams colorTargetParams;
 
         /// <summary>
         /// Parameters for the depth target allocated when the
@@ -75,29 +75,35 @@ namespace HN.HNRP
         /// Default: full-resolution 32-bit depth.
         /// </summary>
         [SerializeField]
-        private TextureResourceParams m_DepthTargetParams;
+        private TextureResourceParams depthTargetParams;
 
         /// <summary>
         /// Parameters for the renderer list created when the
         /// Default: opaque queue, layer mask <c>0x00000001</c>.
         /// </summary>
         [SerializeField]
-        private RendererListParams m_RendererListParams;
+        private RendererListParams rendererListParams;
 
         /// <summary>
         /// Whether the render function should set the probe / light / light-datas
         /// shader globals before drawing. Default <c>true</c>.
         /// </summary>
         [SerializeField]
-        private bool m_SetLightGlobals = true;
+        private bool setLightGlobals = true;
+
+        /// <summary>
+        /// Whether the objects should receive shadow.
+        /// </summary>
+        [SerializeField]
+        private bool receiveShadow = true;
 
         /// <summary>
         /// Gets or sets the color target allocation parameters.
         /// </summary>
         public TextureResourceParams ColorTargetParams
         {
-            get => m_ColorTargetParams;
-            set => m_ColorTargetParams = value;
+            get => colorTargetParams;
+            set => colorTargetParams = value;
         }
 
         /// <summary>
@@ -105,8 +111,8 @@ namespace HN.HNRP
         /// </summary>
         public TextureResourceParams DepthTargetParams
         {
-            get => m_DepthTargetParams;
-            set => m_DepthTargetParams = value;
+            get => depthTargetParams;
+            set => depthTargetParams = value;
         }
 
         /// <summary>
@@ -114,8 +120,8 @@ namespace HN.HNRP
         /// </summary>
         public RendererListParams RendererListParams
         {
-            get => m_RendererListParams;
-            set => m_RendererListParams = value;
+            get => rendererListParams;
+            set => rendererListParams = value;
         }
 
         /// <summary>
@@ -125,20 +131,30 @@ namespace HN.HNRP
         /// </summary>
         public uint RenderingLayerMask
         {
-            get => m_RendererListParams.RenderingLayerMask;
-            set => m_RendererListParams.RenderingLayerMask = value;
+            get => rendererListParams.RenderingLayerMask;
+            set => rendererListParams.RenderingLayerMask = value;
         }
 
+        // /// <summary>
+        // /// Gets or sets a value indicating whether the render function should set
+        // /// the probe / light / light-datas shader globals before drawing.
+        // /// Default is <c>true</c>. Set to <c>false</c> for graphs that have no
+        // /// cluster culling data (e.g. preview).
+        // /// </summary>
+        // public bool SetLightGlobals
+        // {
+        //     get => setLightGlobals;
+        //     set => setLightGlobals = value;
+        // }
+
         /// <summary>
-        /// Gets or sets a value indicating whether the render function should set
-        /// the probe / light / light-datas shader globals before drawing.
-        /// Default is <c>true</c>. Set to <c>false</c> for graphs that have no
-        /// cluster culling data (e.g. preview).
+        /// Gets or sets a value indicating whether the objects should receive shadow.
+        /// Default is <c>true</c>.
         /// </summary>
-        public bool SetLightGlobals
+        public bool ReceiveShadow
         {
-            get => m_SetLightGlobals;
-            set => m_SetLightGlobals = value;
+            get => receiveShadow;
+            set => receiveShadow = value;
         }
 
         // ── Slots ──
@@ -154,6 +170,16 @@ namespace HN.HNRP
         /// Available after <see cref="Pass.SetupSlots"/> is called.
         /// </summary>
         public TextureSlot? DepthTargetSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the cascade shadow map slot.
+        /// </summary>
+        public TextureSlot? CascadeShadowMapSlot { get; private set; }
+
+        /// <summary>
+        /// Gets the screen space shadow map slot.
+        /// </summary>
+        public TextureSlot? ScreenSpaceShadowMapSlot { get; private set; }
 
         /// <summary>
         /// Gets the input light data compute buffer slot.
@@ -230,10 +256,10 @@ namespace HN.HNRP
         {
             if (source is DrawObjectPass s)
             {
-                m_ColorTargetParams = s.m_ColorTargetParams;
-                m_DepthTargetParams = s.m_DepthTargetParams;
-                m_RendererListParams = s.m_RendererListParams;
-                m_SetLightGlobals = s.m_SetLightGlobals;
+                colorTargetParams = s.colorTargetParams;
+                depthTargetParams = s.depthTargetParams;
+                rendererListParams = s.rendererListParams;
+                // setLightGlobals = s.setLightGlobals;
             }
         }
 
@@ -246,6 +272,8 @@ namespace HN.HNRP
             RegisterSlot(ColorTargetSlot);
             DepthTargetSlot = new TextureSlot("DepthTarget", SlotDirection.Input);
             RegisterSlot(DepthTargetSlot);
+            CascadeShadowMapSlot = new TextureSlot("ShadowMap", SlotDirection.Input);
+            RegisterSlot(CascadeShadowMapSlot);
             LightDatasSlot = new ComputeBufferSlot("LightDatas", SlotDirection.Input);
             RegisterSlot(LightDatasSlot);
             ReflectionProbeAtlasSlot = new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
@@ -272,12 +300,14 @@ namespace HN.HNRP
         {
             cameraContext = context;
 
-            m_ColorTargetParams = TextureResourceParams.CreateDefault();
+            colorTargetParams = TextureResourceParams.CreateDefault();
             var format = template.Settings.AllowHDR ? SystemInfo.GetGraphicsFormat(DefaultFormat.HDR) : SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
-            m_ColorTargetParams.ColorFormat = format;
+            colorTargetParams.ColorFormat = format;
 
-            m_DepthTargetParams = TextureResourceParams.CreateDefault();
-            m_DepthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
+            depthTargetParams = TextureResourceParams.CreateDefault();
+            depthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
+
+            rendererListParams = RendererListParams.CreateDefault();
         }
 
         /// <inheritdoc />
@@ -307,13 +337,13 @@ namespace HN.HNRP
             TextureHandle colorTarget = useInputColor
                 ? ColorTargetSlot.ReadHandle()
                 : renderGraph.CreateTexture(
-                    m_ColorTargetParams.CreateDesc("Color Buffer", camera));
+                    colorTargetParams.CreateDesc("Color Buffer", camera));
 
             bool useInputDepth = DepthTargetSlot.IsConnected && DepthTargetSlot.HasHandle;
             TextureHandle depthTarget = useInputDepth
                 ? DepthTargetSlot.ReadHandle()
                 : renderGraph.CreateTexture(
-                    m_DepthTargetParams.CreateDesc("Depth Buffer", camera));
+                    depthTargetParams.CreateDesc("Depth Buffer", camera));
 
             if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
@@ -348,6 +378,17 @@ namespace HN.HNRP
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
             // ── Optional inputs: gated independently on connectivity ──
+
+            bool hasCascadeShadow = false;
+            bool isScreenSpaceShadow = false;
+            if(CascadeShadowMapSlot.IsConnected && CascadeShadowMapSlot.HasHandle)
+            {
+                hasCascadeShadow = true;
+                if(ScreenSpaceShadowMapSlot.IsConnected && ScreenSpaceShadowMapSlot.HasHandle)
+                {
+                    isScreenSpaceShadow = true;
+                }
+            }
 
             bool hasLightDatas = LightDatasSlot?.IsConnected == true && LightDatasSlot.HasHandle;
             if (hasLightDatas)
@@ -394,10 +435,10 @@ namespace HN.HNRP
             // are stored on the pooled pass data so the render function closure
             // only captures `this` (zero allocation).
 
-            bool setLightGlobals = m_SetLightGlobals;
+            // bool setLightGlobals = this.setLightGlobals;
             bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
 
-            passData.setLightGlobals = setLightGlobals;
+            // passData.setLightGlobals = setLightGlobals;
             passData.enableProbeKeyword = enableProbeKeyword;
             passData.hasLightMask = hasLightMask;
             passData.hasLightDatas = hasLightDatas;
@@ -422,10 +463,19 @@ namespace HN.HNRP
 
                     ctx.cmd.SetViewProjectionMatrices(data.viewMatrix, data.projMatrix);
 
-                    if (data.setLightGlobals)
+                    if (!(camera.cameraType == CameraType.Preview && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME))
                     {
-                        // Reflection probe shader keyword + globals (all three
-                        // probe slots must be connected).
+                        if(hasCascadeShadow)
+                        {
+                            ctx.cmd.EnableShaderKeyword(GlobalKeywords.cascadeShadowMap);
+                            if(isScreenSpaceShadow)
+                                ctx.cmd.EnableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
+                            else
+                                ctx.cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
+                        }
+                        else
+                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.cascadeShadowMap);
+
                         if (data.enableProbeKeyword)
                         {
                             ctx.cmd.EnableShaderKeyword(
@@ -464,7 +514,7 @@ namespace HN.HNRP
                                 data.lightDatasBuffer);
                         }
                     }
-
+                    
                     ctx.cmd.DrawRendererList(data.rendererList);
                 });
         }
@@ -490,7 +540,7 @@ namespace HN.HNRP
                 return default;
             }
 
-            RendererListDesc desc = m_RendererListParams.CreateDesc(
+            RendererListDesc desc = rendererListParams.CreateDesc(
                 ShaderPassNames.AllForwardNames,
                 cameraContext.CullingResults,
                 cameraContext.Camera);
@@ -544,10 +594,10 @@ namespace HN.HNRP
             /// </summary>
             public RendererListHandle rendererList;
 
-            /// <summary>
-            /// Whether the render function should set lighting globals.
-            /// </summary>
-            public bool setLightGlobals;
+            // /// <summary>
+            // /// Whether the render function should set lighting globals.
+            // /// </summary>
+            // public bool setLightGlobals;
 
             /// <summary>
             /// Whether the probe keyword + globals should be enabled.

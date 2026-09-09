@@ -13,55 +13,58 @@ MonoBehaviour:
   m_Name: PreviewGraph
   m_EditorClassIdentifier: 
   m_Passes:
-  - rid: 2663563119090466987
-  - rid: 2663563119090466988
+  - rid: 6885483949488603176
+  - rid: 6885483949488603177
   m_Connections:
   - m_SourcePass: opaque
     m_SourceSlot: ColorTargetOutput
     m_TargetPass: finalBlit
     m_TargetSlot: ColorTarget
   m_Settings:
-    SHEvalMode: 0
-    AllowHDR: 0
+    SHEvalMode: 2
+    AllowHDR: 1
   references:
     version: 2
     RefIds:
-    - rid: 2663563119090466987
+    - rid: 6885483949488603176
       type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: opaque
         m_IsEnabled: 1
-        m_ColorTargetParams:
-          ColorFormat: 8
+        colorTargetParams:
+          ColorFormat: 0
           DepthBits: 0
-          TextureScale: {x: 1, y: 1}
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_DepthTargetParams:
-          ColorFormat: 8
-          DepthBits: 32
-          TextureScale: {x: 1, y: 1}
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        depthTargetParams:
+          ColorFormat: 0
+          DepthBits: 0
+          Slices: 0
+          TextureScale: {x: 0, y: 0}
           Width: 0
           Height: 0
-          FilterMode: 1
+          FilterMode: 0
           WrapMode: 0
-          TextureDimension: 2
+          TextureDimension: 0
           UseMipMap: 0
           AutoGenerateMips: 0
-          ClearBuffer: 1
-          ClearColor: {r: 0, g: 0, b: 0, a: 1}
-        m_RendererListParams:
+          ClearBuffer: 0
+          ClearColor: {r: 0, g: 0, b: 0, a: 0}
+        rendererListParams:
           ListKind: 0
           RenderingLayerMask: 1
-        m_SetLightGlobals: 0
-    - rid: 2663563119090466988
+        setLightGlobals: 1
+        receiveShadow: 1
+    - rid: 6885483949488603177
       type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
       data:
         m_PassName: finalBlit
