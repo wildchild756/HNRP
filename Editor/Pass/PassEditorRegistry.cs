@@ -24,7 +24,7 @@ namespace HN.HNRP.Editor
         /// <summary>
         /// Pass 类型 → 编辑器实例的映射。首个注册生效。
         /// </summary>
-        private static readonly Dictionary<Type, PassEditor> s_Editors = new();
+        private static readonly Dictionary<Type, PassEditor> editors = new();
 
         /// <summary>
         /// 静态构造：注册全部编辑器。
@@ -47,7 +47,7 @@ namespace HN.HNRP.Editor
                 return DefaultPassEditor.Instance;
             }
 
-            return s_Editors.TryGetValue(passType, out PassEditor editor)
+            return editors.TryGetValue(passType, out PassEditor editor)
                 ? editor
                 : DefaultPassEditor.Instance;
         }
@@ -57,7 +57,7 @@ namespace HN.HNRP.Editor
         /// </summary>
         private static void RegisterAll()
         {
-            s_Editors.Clear();
+            editors.Clear();
 
             foreach (Type type in TypeCache.GetTypesDerivedFrom<PassEditor>())
             {
@@ -78,12 +78,12 @@ namespace HN.HNRP.Editor
                     continue;
                 }
 
-                if (s_Editors.ContainsKey(attr.PassType))
+                if (editors.ContainsKey(attr.PassType))
                 {
                     continue;
                 }
 
-                s_Editors[attr.PassType] = (PassEditor)Activator.CreateInstance(type);
+                editors[attr.PassType] = (PassEditor)Activator.CreateInstance(type);
             }
         }
     }

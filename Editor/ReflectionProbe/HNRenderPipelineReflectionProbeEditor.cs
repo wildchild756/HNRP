@@ -38,7 +38,7 @@ namespace HN.HNRP.Editor
             
             if(EditorGUI.EndChangeCheck())
             {
-                s_LastInteractedEditor = this;
+                lastInteractedEditor = this;
                 serializedReflectionProbe.Apply();
             }
         }
@@ -56,7 +56,7 @@ namespace HN.HNRP.Editor
         {
             for (int i = 0; i < targets.Length; i++)
             {
-                s_CurrentlyEditedProbes.Add((ReflectionProbe)targets[i]);
+                currentlyEditedProbes.Add((ReflectionProbe)targets[i]);
             }
             
             Undo.undoRedoPerformed -= ReconstructReferenceToAdditionalDataSO;
@@ -90,15 +90,15 @@ namespace HN.HNRP.Editor
             ReflectionProbe reflectionProbe = (ReflectionProbe)target;
             using (new Handles.DrawingScope(HNRenderPipelineReflectionProbeUI.GetLocalSpace(reflectionProbe)))
             {
-                m_BoundsHandle.center = reflectionProbe.center;
-                m_BoundsHandle.size = reflectionProbe.size;
+                boundsHandle.center = reflectionProbe.center;
+                boundsHandle.size = reflectionProbe.size;
                 EditorGUI.BeginChangeCheck();
-                m_BoundsHandle.DrawHandle();
+                boundsHandle.DrawHandle();
                 if (EditorGUI.EndChangeCheck())
                 {
                     Undo.RecordObject(reflectionProbe, "Modified Reflection Probe AABB");
-                    Vector3 center = m_BoundsHandle.center;
-                    Vector3 size = m_BoundsHandle.size;
+                    Vector3 center = boundsHandle.center;
+                    Vector3 size = boundsHandle.size;
                     HNRenderPipelineReflectionProbeUI.ValidateAABB(reflectionProbe, ref center, ref size);
                     reflectionProbe.center = center;
                     reflectionProbe.size = size;
@@ -114,14 +114,14 @@ namespace HN.HNRP.Editor
             Vector3 size = reflectionProbe.size;
             EditorGUI.BeginChangeCheck();
             Vector3 point = Handles.PositionHandle(position, HNRenderPipelineReflectionProbeUI.GetLocalSpaceRotation(reflectionProbe));
-            if (EditorGUI.EndChangeCheck() || m_OldLocalSpace != HNRenderPipelineReflectionProbeUI.GetLocalSpace((ReflectionProbe)target))
+            if (EditorGUI.EndChangeCheck() || oldLocalSpace != HNRenderPipelineReflectionProbeUI.GetLocalSpace((ReflectionProbe)target))
             {
-                Vector3 point2 = m_OldLocalSpace.inverse.MultiplyPoint3x4(point);
+                Vector3 point2 = oldLocalSpace.inverse.MultiplyPoint3x4(point);
                 point2 = new Bounds(reflectionProbe.center, size).ClosestPoint(point2);
                 Undo.RecordObject(reflectionProbe.transform, "Modified Reflection Probe Origin");
-                reflectionProbe.transform.position = m_OldLocalSpace.MultiplyPoint3x4(point2);
+                reflectionProbe.transform.position = oldLocalSpace.MultiplyPoint3x4(point2);
                 Undo.RecordObject(reflectionProbe, "Modified Reflection Probe Origin");
-                reflectionProbe.center = HNRenderPipelineReflectionProbeUI.GetLocalSpace(reflectionProbe).inverse.MultiplyPoint3x4(m_OldLocalSpace.MultiplyPoint3x4(reflectionProbe.center));
+                reflectionProbe.center = HNRenderPipelineReflectionProbeUI.GetLocalSpace(reflectionProbe).inverse.MultiplyPoint3x4(oldLocalSpace.MultiplyPoint3x4(reflectionProbe.center));
                 EditorUtility.SetDirty(target);
                 UpdateOldLocalSpace();
             }
@@ -129,14 +129,14 @@ namespace HN.HNRP.Editor
 
         private void UpdateOldLocalSpace()
         {
-            m_OldLocalSpace = HNRenderPipelineReflectionProbeUI.GetLocalSpace((ReflectionProbe)target);
+            oldLocalSpace = HNRenderPipelineReflectionProbeUI.GetLocalSpace((ReflectionProbe)target);
         }
         
 
         [DrawGizmo(GizmoType.Active)]
         private static void RenderBoxGizmo(ReflectionProbe reflectionProbe, GizmoType gizmoType)
         {
-            if (!(s_LastInteractedEditor == null) && s_LastInteractedEditor.sceneViewEditing && EditMode.editMode == EditMode.SceneViewEditMode.ReflectionProbeBox)
+            if (!(lastInteractedEditor == null) && lastInteractedEditor.sceneViewEditing && EditMode.editMode == EditMode.SceneViewEditMode.ReflectionProbeBox)
             {
                 Color color = Gizmos.color;
                 Gizmos.color = kGizmoReflectionProbe;
@@ -150,7 +150,7 @@ namespace HN.HNRP.Editor
         [DrawGizmo(GizmoType.Selected)]
         private static void RenderBoxOutline(ReflectionProbe reflectionProbe, GizmoType gizmoType)
         {
-            if (s_CurrentlyEditedProbes.Contains(reflectionProbe))
+            if (currentlyEditedProbes.Contains(reflectionProbe))
             {
                 Color color = Gizmos.color;
                 Gizmos.color = (reflectionProbe.isActiveAndEnabled ? kGizmoReflectionProbe : kGizmoReflectionProbeDisabled);
@@ -169,13 +169,13 @@ namespace HN.HNRP.Editor
         private ReflectionProbe reflectionProbe => target as ReflectionProbe;
         private HNRenderPipelineSerializedReflectionProbe serializedReflectionProbe;
         private bool sceneViewEditing => HNRenderPipelineReflectionProbeUI.IsReflectionProbeEditMode(EditMode.editMode) && EditMode.IsOwner(this);
-        private BoxBoundsHandle m_BoundsHandle = new BoxBoundsHandle();
-        private Matrix4x4 m_OldLocalSpace = Matrix4x4.identity;
+        private BoxBoundsHandle boundsHandle = new BoxBoundsHandle();
+        private Matrix4x4 oldLocalSpace = Matrix4x4.identity;
 
         internal static Color kGizmoReflectionProbe = new Color(1f, 0.8980392f, 0.5803922f, 0.5019608f);
         internal static Color kGizmoReflectionProbeDisabled = new Color(0.6f, 0.5372549f, 0.34901962f, 32f / 85f);
 
-        private static HNRenderPipelineReflectionProbeEditor s_LastInteractedEditor;
-        private static HashSet<ReflectionProbe> s_CurrentlyEditedProbes = new HashSet<ReflectionProbe>();
+        private static HNRenderPipelineReflectionProbeEditor lastInteractedEditor;
+        private static HashSet<ReflectionProbe> currentlyEditedProbes = new HashSet<ReflectionProbe>();
     }
 }

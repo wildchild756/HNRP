@@ -4,90 +4,83 @@ using UnityEngine.Experimental.Rendering.RenderGraphModule;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Draws the Editor wire overlay (gizmos, selection outlines, etc.) into the color target.
-    /// New <see cref="Pass"/>-based replacement for the legacy
-    /// <see cref="EditorWireOverlayPass"/> (<c>PassBase</c>).
+    /// 把 Editor 线框叠加层（gizmos、选中轮廓等）绘制进颜色目标。
+    /// 旧 <see cref="EditorWireOverlayPass"/>（<c>PassBase</c>）的 <see cref="Pass"/> 版替代。
     /// </summary>
     /// <remarks>
-    /// <para>Inputs (connected from upstream, e.g. <c>DrawObjectPass</c>):</para>
+    /// <para>输入（从上游连接，如 <c>DrawObjectPass</c>）：</para>
     /// <list type="bullet">
-    ///   <item><b>ColorTarget</b> — the color buffer into which the wire overlay is drawn.</item>
+    ///   <item><b>ColorTarget</b> —— 绘制线框叠加层所用的颜色缓冲。</item>
     /// </list>
     /// <para>
-    /// Uses the shared texture model: the color target is allocated by the upstream
-    /// chain head pass and this pass renders into the same buffer.
+    /// 使用共享纹理模型：颜色目标由上游链头 pass 分配，本 pass 渲染进同一缓冲。
     /// </para>
     /// <para>
-    /// This pass is only active in the Unity Editor and only for Scene View cameras.
-    /// The entire <see cref="Record"/> implementation is wrapped in <c>#if UNITY_EDITOR</c>.
-    /// The render function calls <c>ctx.renderContext.DrawWireOverlay(camera)</c>,
-    /// matching the legacy <see cref="EditorWireOverlayPass"/> behavior.
+    /// 本 pass 仅在 Unity Editor 中且仅对 SceneView 相机生效。
+    /// 整个 <see cref="Record"/> 实现被 <c>#if UNITY_EDITOR</c> 包裹。
+    /// 渲染函数调用 <c>ctx.renderContext.DrawWireOverlay(camera)</c>，
+    /// 与旧 <see cref="EditorWireOverlayPass"/> 行为一致。
     /// </para>
     /// <para>
-    /// <b>Outputs (pass-through for downstream chaining):</b>
+    /// <b>输出（透传以支持下游链式连接）：</b>
     /// </para>
     /// <list type="bullet">
-    ///   <item><b>ColorTargetOutput</b> — pass-through of the input color target
-    ///   so downstream passes can connect without a separate resource node.</item>
+    ///   <item><b>ColorTargetOutput</b> —— 输入颜色目标的透传，
+    ///   使下游 pass 无需独立资源节点即可连接。</item>
     /// </list>
     /// </remarks>
     [Pass(PassNameConst)]
     public sealed class EditorWireOverlayPass : Pass
     {
         /// <summary>
-        /// The constant pass name string used for registration and identification.
-        /// Matches the legacy <see cref="EditorWireOverlayPass.PassName"/> pattern.
+        /// 用于注册与识别的常量 pass 名。
+        /// 遵循旧 <see cref="EditorWireOverlayPass.PassName"/> 模式。
         /// </summary>
         public const string PassNameConst = "Editor Wire Overlay";
 
-        // ── Slots ──
+        // ── Slot ──
 
         /// <summary>
-        /// Gets the output color target slot.
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 颜色目标输入 slot。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetSlot { get; private set; }
+        public TextureSlot ColorTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output color target slot (pass-through of the input
-        /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 颜色目标输出 slot（输入 <see cref="ColorTargetSlot"/> 句柄的透传，
+        /// 供下游链式连接）。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetOutputSlot { get; private set; }
+        public TextureSlot ColorTargetOutputSlot { get; private set; }
 
-        // ── Camera context ──
+        // ── 相机上下文 ──
 
-        private CameraContext? cameraContext;
+        private CameraContext cameraContext;
 
-        // ── Constructor ──
+        // ── 构造函数 ──
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EditorWireOverlayPass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// 初始化 <see cref="EditorWireOverlayPass"/> 的新实例。
         /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// </remarks>
         public EditorWireOverlayPass()
+            : base(string.Empty)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="EditorWireOverlayPass"/> class.
+        /// 初始化 <see cref="EditorWireOverlayPass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public EditorWireOverlayPass(string passName)
             : base(passName)
         {
         }
 
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            // No serialized parameters on this pass.
-        }
-
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -101,8 +94,8 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context so the camera can be accessed during
-        /// <see cref="Record"/> for the <c>DrawWireOverlay</c> call.
+        /// 保存相机上下文，使 <see cref="Record"/> 期间能访问相机以调用
+        /// <c>DrawWireOverlay</c>。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
@@ -112,38 +105,31 @@ namespace HN.HNRP
         /// <inheritdoc />
         /// <remarks>
         /// <para>
-        /// Reads the upstream color target (shared texture model — allocated by
-        /// <c>DrawObjectPass</c>) and draws the Editor wire overlay using
-        /// <c>ctx.renderContext.DrawWireOverlay(camera)</c> — identical logic to
-        /// the legacy <see cref="EditorWireOverlayPass.Record"/>.
+        /// 读取上游颜色目标（共享纹理模型 —— 由 <c>DrawObjectPass</c> 分配），
+        /// 并用 <c>ctx.renderContext.DrawWireOverlay(camera)</c> 绘制 Editor 线框叠加层
+        /// —— 与旧 <see cref="EditorWireOverlayPass.Record"/> 逻辑相同。
         /// </para>
         /// <para>
-        /// Only active for Scene View cameras. The entire implementation is
-        /// wrapped in <c>#if UNITY_EDITOR</c> so it is stripped from player builds.
+        /// 仅对 SceneView 相机生效。整个实现被 <c>#if UNITY_EDITOR</c> 包裹，
+        /// 因此在 Player 构建中被剔除。
         /// </para>
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
 #if UNITY_EDITOR
-            if (ColorTargetSlot == null)
+            if (ColorTargetSlot == null
+                || cameraContext == null
+                || !ColorTargetSlot.IsConnected)
             {
-                IsEnabled &= false;
-            }
-
-            if (cameraContext == null)
-            {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
             Camera camera = cameraContext.Camera;
-            if (camera.cameraType != CameraType.SceneView)
+            if (camera == null || camera.cameraType != CameraType.SceneView)
             {
-                IsEnabled &= false;
-            }
-
-            if (!ColorTargetSlot.IsConnected)
-            {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
             using var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>(
@@ -151,19 +137,19 @@ namespace HN.HNRP
 
             builder.AllowPassCulling(false);
 
-            // ── Input slot: use upstream color target (shared texture model) ──
+            // ── 输入 slot：使用上游颜色目标（共享纹理模型）──
 
             TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
 
-            // Guard against an invalid upstream chain (e.g. a frame where culling
-            // failed so the producer pass skipped recording).
+            // 防护无效的上游链（如某帧裁剪失败使生产 pass 跳过记录）。
             if (!colorTarget.IsValid())
             {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
-            // Pass-through the input color handle to the output slot so
-            // downstream passes can chain from this pass's output.
+            // 把输入颜色句柄透传到输出 slot，
+            // 使下游 pass 能从本 pass 输出继续链式连接。
             if (ColorTargetOutputSlot != null)
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
@@ -171,13 +157,13 @@ namespace HN.HNRP
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
 
-            // ── Render function: draw wire overlay (same logic as legacy EditorWireOverlayPass) ──
+            // ── 渲染函数：绘制线框叠加层（与旧 EditorWireOverlayPass 相同逻辑）──
 
             passData.camera = camera;
             builder.SetRenderFunc(
                 (EditorWireOverlayPassData data, RenderGraphContext ctx) =>
                 {
-                    if(!IsEnabled)
+                    if (!IsEnabled)
                     {
                         return;
                     }
@@ -192,23 +178,23 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held by this pass.
+            // 本 pass 不持有可释放资源。
         }
 
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for <see cref="EditorWireOverlayPass"/>.
+        /// <see cref="EditorWireOverlayPass"/> 的渲染图 pass 数据容器。
         /// </summary>
         private sealed class EditorWireOverlayPassData
         {
             /// <summary>
-            /// The color target texture handle.
+            /// 颜色目标纹理句柄。
             /// </summary>
             public TextureHandle colorTarget;
 
             /// <summary>
-            /// The camera whose wire overlay is drawn.
+            /// 绘制线框叠加层所用相机。
             /// </summary>
             public Camera camera;
         }

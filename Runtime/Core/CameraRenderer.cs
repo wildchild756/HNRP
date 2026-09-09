@@ -11,22 +11,19 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Per-camera independent renderer.
-    /// Each <see cref="CameraRenderer"/> owns a runtime <see cref="List{Pass}"/>,
-    /// a <see cref="CameraContext"/>, and a reference to the current
-    /// <see cref="RenderGraphAsset"/> template. It is responsible for building
-    /// passes from a template, managing pass lifecycle, and executing the render
-    /// graph for a single camera.
+    /// 每相机独立的渲染器。
+    /// 每个 <see cref="CameraRenderer"/> 拥有运行时的 <see cref="List{Pass}"/>、
+    /// 一个 <see cref="CameraContext"/> 与当前 <see cref="RenderGraphAsset"/> 模板引用。
+    /// 它负责从模板构建 pass、管理 pass 生命周期，并为单个相机执行渲染图。
     /// </summary>
     /// <remarks>
-    /// <para><b>Architecture note</b> (ADR-002, ADR-011):
-    /// <see cref="RenderGraphAsset"/> is the static blueprint (ScriptableObject);
-    /// <see cref="CameraRenderer"/> owns the runtime pass list per camera.
+    /// <para><b>架构说明</b>（ADR-002、ADR-011）：
+    /// <see cref="RenderGraphAsset"/> 是静态蓝图（ScriptableObject）；
+    /// <see cref="CameraRenderer"/> 每相机拥有运行时 pass 列表。
     /// </para>
     /// <para>
-    /// The render loop calls <see cref="Build"/> (or <see cref="Reset"/>) to
-    /// populate the pass list, then <see cref="Render"/> each frame to execute
-    /// passes in order.
+    /// 渲染循环调用 <see cref="Build"/>（或 <see cref="Reset"/>）填充 pass 列表，
+    /// 之后每帧调用 <see cref="Render"/> 按顺序执行 pass。
     /// </para>
     /// </remarks>
     /// <seealso cref="Pass"/>
@@ -35,34 +32,34 @@ namespace HN.HNRP
     public class CameraRenderer
     {
         /// <summary>
-        /// The ordered list of runtime <see cref="Pass"/> instances owned by this renderer.
-        /// Populated by <see cref="Build"/> or <see cref="Reset"/>.
+        /// 本渲染器拥有的运行时 <see cref="Pass"/> 实例的有序列表。
+        /// 由 <see cref="Build"/> 或 <see cref="Reset"/> 填充。
         /// </summary>
         public List<Pass> Passes { get; private set; } = new();
 
         /// <summary>
-        /// The per-camera rendering context that passes reference during execution.
+        /// pass 执行期间引用的每相机渲染上下文。
         /// </summary>
         public CameraContext Context { get; set; }
 
         /// <summary>
-        /// The current <see cref="RenderGraphAsset"/> template. Null until the first
-        /// call to <see cref="Build"/> or <see cref="Reset"/>.
+        /// 当前 <see cref="RenderGraphAsset"/> 模板。首次调用
+        /// <see cref="Build"/> 或 <see cref="Reset"/> 之前为 <c>null</c>。
         /// </summary>
         public RenderGraphAsset CurrentTemplate { get; private set; }
 
         /// <summary>
-        /// Internal storage for slot connections added via <see cref="Connect"/>.
-        /// These are wired during <see cref="Build"/> or <see cref="Reset"/>.
+        /// 通过 <see cref="Connect"/> 添加的 slot 连接的内部存储。
+        /// 在 <see cref="Build"/> 或 <see cref="Reset"/> 期间完成接线。
         /// </summary>
-        private readonly List<SlotConnection> m_ManualConnections = new();
+        private readonly List<SlotConnection> manualConnections = new();
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="CameraRenderer"/> class.
+        /// 初始化 <see cref="CameraRenderer"/> 的新实例。
         /// </summary>
         /// <param name="context">
-        /// The per-camera rendering context. May be <c>null</c> if the caller will
-        /// set it later or supply it via <see cref="Render"/>.
+        /// 每相机渲染上下文。可为 <c>null</c>（调用方稍后设置，或在
+        /// <see cref="Render"/> 中提供）。
         /// </param>
         public CameraRenderer(CameraContext context)
         {
@@ -70,15 +67,15 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Builds the runtime pass list from a <see cref="RenderGraphAsset"/> template.
-        /// Calls <see cref="RenderGraphAsset.Build"/> which instantiates passes from
-        /// definitions, wires connections, and filters to enabled passes only.
+        /// 从 <see cref="RenderGraphAsset"/> 模板构建运行时 pass 列表。
+        /// 调用 <see cref="RenderGraphAsset.Build"/> —— 该实现会执行模板构建代码
+        /// 创建 pass（方案 X）、接线连接，并只保留启用 pass。
         /// </summary>
         /// <param name="template">
-        /// The render graph template asset. Must not be <c>null</c>.
+        /// 渲染图模板资产。不能为 <c>null</c>。
         /// </param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown when <paramref name="template"/> is <c>null</c>.
+        /// 当 <paramref name="template"/> 为 <c>null</c> 时抛出。
         /// </exception>
         public void Build(RenderGraphAsset template)
         {
@@ -94,23 +91,20 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Creates a new pass of type <typeparamref name="T"/> with the given instance
-        /// name and appends it to the pass list.
+        /// 创建指定类型 <typeparamref name="T"/> 的新 pass（传入实例名）并追加到
+        /// pass 列表。
         /// </summary>
         /// <typeparam name="T">
-        /// The concrete <see cref="Pass"/> subclass to instantiate. Must have a
-        /// public constructor that accepts a single <see cref="string"/> argument
-        /// (the pass name), as well as a parameterless constructor for the
-        /// <c>new()</c> constraint.
+        /// 要实例化的 <see cref="Pass"/> 具体子类。需提供接受单个
+        /// <see cref="string"/> 参数（pass 名）的公开构造函数。
         /// </typeparam>
-        /// <param name="name">The instance name for the new pass.</param>
-        /// <returns>The newly created pass instance.</returns>
+        /// <param name="name">新 pass 的实例名。</param>
+        /// <returns>新创建的 pass 实例。</returns>
         /// <exception cref="ArgumentNullException">
-        /// Thrown when <paramref name="name"/> is <c>null</c>.
+        /// 当 <paramref name="name"/> 为 <c>null</c> 时抛出。
         /// </exception>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when <typeparamref name="T"/> cannot be instantiated with a
-        /// string constructor.
+        /// 当 <typeparamref name="T"/> 无法用字符串构造实例化时抛出。
         /// </exception>
         public T AddPass<T>(string name)
             where T : Pass
@@ -120,10 +114,7 @@ namespace HN.HNRP
                 throw new ArgumentNullException(nameof(name));
             }
 
-            // Instantiate via the string constructor, matching how
-            // RenderGraphAsset.InstantiatePass works. The new() constraint
-            // provides compile-time type safety but the string constructor
-            // is the expected construction path.
+            // 通过字符串构造实例化，与模板构建代码的构造路径一致。
             Pass instance;
             try
             {
@@ -132,16 +123,15 @@ namespace HN.HNRP
             catch (MissingMethodException ex)
             {
                 throw new InvalidOperationException(
-                    $"Pass type '{typeof(T).FullName}' does not have a public constructor " +
-                    $"that accepts a single string argument. All Pass subclasses must " +
-                    $"implement a constructor of the form: public {typeof(T).Name}(string name) : base(name) {{ }}",
+                    $"Pass 类型 '{typeof(T).FullName}' 没有接受单个 string 参数的公开构造函数。 " +
+                    $"所有 Pass 子类必须实现：public {typeof(T).Name}(string name) : base(name) {{ }}",
                     ex);
             }
 
             if (instance == null)
             {
                 throw new InvalidOperationException(
-                    $"Failed to instantiate pass of type '{typeof(T).FullName}'.");
+                    $"无法实例化 Pass 类型 '{typeof(T).FullName}'。");
             }
 
             Passes.Add(instance);
@@ -149,23 +139,21 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Removes a pass from the runtime list by its instance name.
-        /// If no pass with the given name exists, this method is a no-op.
+        /// 按实例名从运行时列表移除 pass。名字不存在时为空操作。
         /// </summary>
-        /// <param name="name">The instance name of the pass to remove.</param>
+        /// <param name="name">要移除的 pass 实例名。</param>
         public void RemovePass(string name)
         {
             Passes.RemoveAll(p => p.PassName == name);
         }
 
         /// <summary>
-        /// Finds a pass of type <typeparamref name="T"/> by its instance name.
+        /// 按实例名查找指定类型 <typeparamref name="T"/> 的 pass。
         /// </summary>
-        /// <typeparam name="T">The expected pass type.</typeparam>
-        /// <param name="name">The instance name of the pass to find.</param>
+        /// <typeparam name="T">期望的 pass 类型。</typeparam>
+        /// <param name="name">要查找的 pass 实例名。</param>
         /// <returns>
-        /// The matching <see cref="Pass"/> cast to <typeparamref name="T"/>,
-        /// or <c>null</c> if no pass with the given name exists.
+        /// 类型为 <typeparamref name="T"/> 的匹配 pass，找不到时为 <c>null</c>。
         /// </returns>
         public T FindPass<T>(string name)
             where T : Pass
@@ -182,11 +170,10 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Toggles whether a pass is enabled.
-        /// When disabled, the pass is skipped during <see cref="Render"/>.
+        /// 切换 pass 的启用状态。禁用后 <see cref="Render"/> 会跳过该 pass。
         /// </summary>
-        /// <param name="name">The instance name of the pass.</param>
-        /// <param name="enabled">The desired enabled state.</param>
+        /// <param name="name">pass 实例名。</param>
+        /// <param name="enabled">目标启用状态。</param>
         public void SetPassEnabled(string name, bool enabled)
         {
             foreach (Pass pass in Passes)
@@ -200,19 +187,17 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Connects an output slot of one pass to an input slot of another pass
-        /// by name. Connections are stored and wired during the next
-        /// <see cref="Build"/> or <see cref="Reset"/> call.
+        /// 把一个 pass 的输出 slot 与另一个 pass 的输入 slot 按名称相连。
+        /// 连接在下次 <see cref="Build"/> 或 <see cref="Reset"/> 时接线。
         /// </summary>
-        /// <param name="sourcePass">The instance name of the source pass.</param>
-        /// <param name="sourceSlot">The name of the output slot on the source pass.</param>
-        /// <param name="targetPass">The instance name of the target pass.</param>
-        /// <param name="targetSlot">The name of the input slot on the target pass.</param>
+        /// <param name="sourcePass">源 pass 的实例名。</param>
+        /// <param name="sourceSlot">源 pass 上的输出 slot 名。</param>
+        /// <param name="targetPass">目标 pass 的实例名。</param>
+        /// <param name="targetSlot">目标 pass 上的输入 slot 名。</param>
         /// <remarks>
         /// <para>
-        /// Connections are resolved at build time. If passes expose named slots
-        /// (a future API), the actual data-flow wiring is performed automatically.
-        /// Currently the connection record is stored for forward compatibility.
+        /// 连接在构建期解析。若 pass 暴露具名 slot（未来 API），实际数据流接线
+        /// 会自动完成。当前仅存储连接记录，以备向前兼容。
         /// </para>
         /// </remarks>
         public void Connect(
@@ -221,20 +206,19 @@ namespace HN.HNRP
             string targetPass,
             string targetSlot)
         {
-            m_ManualConnections.Add(
+            manualConnections.Add(
                 SlotConnection.Create(sourcePass, sourceSlot, targetPass, targetSlot));
         }
 
         /// <summary>
-        /// Rebuilds the pass list from a new template, resetting all runtime state.
-        /// This clears manually added passes and re-invokes
-        /// <see cref="RenderGraphAsset.Build"/>.
+        /// 从新模板重建 pass 列表并重置全部运行时状态。
+        /// 清空手动添加的 pass 并重新调用 <see cref="RenderGraphAsset.Build"/>。
         /// </summary>
         /// <param name="newTemplate">
-        /// The new render graph template asset. Must not be <c>null</c>.
+        /// 新渲染图模板资产。不能为 <c>null</c>。
         /// </param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown when <paramref name="newTemplate"/> is <c>null</c>.
+        /// 当 <paramref name="newTemplate"/> 为 <c>null</c> 时抛出。
         /// </exception>
         public void Reset(RenderGraphAsset newTemplate)
         {
@@ -244,45 +228,45 @@ namespace HN.HNRP
             }
 
             Passes.Clear();
-            m_ManualConnections.Clear();
+            manualConnections.Clear();
             Build(newTemplate);
         }
 
         /// <summary>
-        /// Executes all enabled passes for the current frame.
+        /// 为当前帧执行全部启用 pass。
         /// </summary>
-        /// <param name="renderGraph">The render graph to record commands into.</param>
+        /// <param name="renderGraph">要记录命令的渲染图。</param>
         /// <param name="context">
-        /// The scriptable render context for the current frame. Updates
-        /// <see cref="CameraContext.Context"/> on <see cref="Context"/>.
+        /// 当前帧的 ScriptableRenderContext，更新 <see cref="Context"/> 上的
+        /// <see cref="CameraContext.Context"/>。
         /// </param>
         /// <remarks>
-        /// <para><b>Execution order per pass:</b></para>
+        /// <para><b>每个 pass 的执行顺序：</b></para>
         /// <list type="number">
-        ///   <item><see cref="Pass.ResetSlotHandles"/> — clear stale output slot handles from the previous frame</item>
-        ///   <item><see cref="Pass.PreRecord"/> — load resources using camera context</item>
-        ///   <item><see cref="Pass.Record"/> — record render graph commands</item>
+        ///   <item><see cref="Pass.ResetSlotHandles"/> —— 清空上一帧的输出 slot 句柄</item>
+        ///   <item><see cref="Pass.PreRecord"/> —— 用相机上下文加载资源</item>
+        ///   <item><see cref="Pass.Record"/> —— 记录渲染图命令</item>
         /// </list>
         /// <para>
-        /// <see cref="Pass.SetupSlots"/> is intentionally <b>not</b> called here:
-        /// slots are declared once during <see cref="Build(RenderGraphAsset)"/>
-        /// (via <c>RenderGraphAsset.Build</c>) so that slot connections established
-        /// at build time reference the same instances used every frame.
+        /// 刻意不在每帧调用 <see cref="Pass.SetupSlots"/>：slot 在
+        /// <see cref="Build(RenderGraphAsset)"/> 期间声明一次（经由
+        /// <c>RenderGraphAsset.Build</c>），因此构建期建立的连接与每帧使用的
+        /// 实例一致。
         /// </para>
         /// <para>
-        /// After all enabled passes execute, <see cref="Pass.Cleanup"/> is called
-        /// on <b>every</b> pass (including disabled ones) to release any held resources.
+        /// 全部启用 pass 执行后，对<b>每个</b> pass（含禁用的）调用
+        /// <see cref="Pass.Cleanup"/> 释放持有资源。
         /// </para>
         /// </remarks>
         public void Render(RenderGraph renderGraph, ScriptableRenderContext context)
         {
-            // Update the camera context with the current frame's ScriptableRenderContext.
+            // 用当前帧的 ScriptableRenderContext 更新相机上下文。
             if (Context != null)
             {
                 Context.Context = context;
             }
 
-            // ── Phase 1–3: Execute each enabled pass ──
+            // ── 阶段 1–3：执行每个启用 pass ──
             foreach (Pass pass in Passes)
             {
                 if (!pass.IsEnabled)
@@ -295,7 +279,7 @@ namespace HN.HNRP
                 pass.Record(renderGraph);
             }
 
-            // ── Phase 4: Cleanup all passes ──
+            // ── 阶段 4：清理全部 pass ──
             foreach (Pass pass in Passes)
             {
                 pass.Cleanup();
@@ -303,18 +287,16 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Wires the manually added <see cref="SlotConnection"/> entries.
-        /// Resolves pass names to instances and connects their slots.
+        /// 接线手动添加的 <see cref="SlotConnection"/> 条目。
+        /// 把 pass 名解析到实例并连接其 slot。
         /// </summary>
         /// <remarks>
-        /// Currently a forward-looking implementation — the actual per-slot
-        /// wiring depends on <see cref="Pass"/> exposing named-slot access
-        /// (see Todo 14 in <c>RenderGraphAsset.cs</c>). Until that API exists,
-        /// connections are validated for name resolution only.
+        /// 当前为前瞻实现——实际逐 slot 接线依赖 <see cref="Pass"/> 暴露具名 slot
+        /// 访问。该 API 就绪前，连接只做名字解析校验。
         /// </remarks>
         private void WireManualConnections()
         {
-            foreach (SlotConnection conn in m_ManualConnections)
+            foreach (SlotConnection conn in manualConnections)
             {
                 if (!conn.IsValid())
                 {
@@ -329,7 +311,7 @@ namespace HN.HNRP
                     continue;
                 }
 
-                // Future: resolve named slots here:
+                // 未来在此解析具名 slot：
                 //   PassSlot sourceSlot = source.GetOutputSlot(conn.SourceSlot);
                 //   PassSlot targetSlot = target.GetInputSlot(conn.TargetSlot);
                 //   sourceSlot.Connect(targetSlot);

@@ -45,10 +45,10 @@ namespace HN.HNRP
         }
 
 
-        public TextureSlot? ShadowMapOutputSlot { get; private set; }
+        public TextureSlot ShadowMapOutputSlot { get; private set; }
 
 
-        private CameraContext? context;
+        private CameraContext cameraContext;
 
         private TextureAllocator textureAllocator;
 
@@ -73,16 +73,6 @@ namespace HN.HNRP
             textureAllocator = new TextureAllocator(ShadowmapResolution, 512, 4096, ShadowmapSliceCount);
         }
 
-
-        public override void CopyFrom(Pass source)
-        {
-            if(source is DrawShadowPass cascadeShadowPass)
-            {
-                this.shadowMapParams = cascadeShadowPass.shadowMapParams;
-                this.rendererListParams = cascadeShadowPass.rendererListParams;
-            }
-        }
-
         public override void SetupSlots()
         {
             ShadowMapOutputSlot = new TextureSlot("drawShadowMapOutput", SlotDirection.Output);
@@ -91,7 +81,7 @@ namespace HN.HNRP
 
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
-            this.context = context;
+            this.cameraContext = context;
 
             shadowMapParams = new TextureResourceParams
             {
@@ -141,12 +131,12 @@ namespace HN.HNRP
 
         public override void Record(RenderGraph renderGraph)
         {
-            if(context == null)
+            if(cameraContext == null)
             {
                 IsEnabled &= false;
             }
 
-            TextureHandle shadowMapHandle = renderGraph.CreateTexture(shadowMapParams.CreateDesc("DirectionalShadowMap", context.Camera));
+            TextureHandle shadowMapHandle = renderGraph.CreateTexture(shadowMapParams.CreateDesc("DirectionalShadowMap", cameraContext.Camera));
 
             RendererListHandle rendererList = CreateRendererList(renderGraph);
 
@@ -163,7 +153,7 @@ namespace HN.HNRP
             passData.shadowMap = builder.WriteTexture(shadowMapHandle);
             passData.rendererList = builder.UseRendererList(rendererList);
 
-            var camera = context.Camera;
+            var camera = cameraContext.Camera;
             for(int i = 0; i < lightParamsList.Count; i++)
             {
                 if(lightParamsList[i].lightType == LightType.Directional)
@@ -250,7 +240,7 @@ namespace HN.HNRP
                         else
                         {
                             var projectionType = mapData.LightType == LightType.Directional ? BatchCullingProjectionType.Orthographic : BatchCullingProjectionType.Perspective;
-                            ShadowDrawingSettings settings = new ShadowDrawingSettings(context.CullingResults, mapData.LightIndex, projectionType)
+                            ShadowDrawingSettings settings = new ShadowDrawingSettings(cameraContext.CullingResults, mapData.LightIndex, projectionType)
                             {
                                 splitData = mapData.ShadowSplitData
                             };
@@ -273,15 +263,15 @@ namespace HN.HNRP
 
         private RendererListHandle CreateRendererList(RenderGraph renderGraph)
         {
-            if (!context.HasCullingResults)
+            if (!cameraContext.HasCullingResults)
             {
                 return default;
             }
 
             RendererListDesc desc = rendererListParams.CreateDesc(
                 ShaderPassNames.AllShadowCasterNames,
-                context.CullingResults,
-                context.Camera);
+                cameraContext.CullingResults,
+                cameraContext.Camera);
             return renderGraph.CreateRendererList(desc);
         }
 

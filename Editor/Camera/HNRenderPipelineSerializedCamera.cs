@@ -29,14 +29,14 @@ namespace HN.HNRP.Editor
             var camerasAdditionalData = CoreEditorUtils.GetAdditionalData<HNAdditionalCameraData>(serializedObject.targetObjects);
             serializedAdditionalDataObject = new SerializedObject(camerasAdditionalData);
 
-            // Common properties
+            // 通用属性
             stopNaNs = serializedAdditionalDataObject.FindProperty("stopNaNs");
             dithering = serializedAdditionalDataObject.FindProperty("dithering");
             // antialiasing = serializedAdditionalDataObject.FindProperty("m_Antialiasing");
             volumeLayerMask = serializedAdditionalDataObject.FindProperty("volumeLayerMask");
             clearDepth = serializedAdditionalDataObject.FindProperty("clearDepth");
 
-            //HNRP specific properties
+            // HNRP 专属属性
             renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
         }
 
@@ -67,7 +67,7 @@ namespace HN.HNRP.Editor
 
         public SerializedProperty projectionMatrixMode { get; }
 
-        // Common properties
+        // 通用属性
         public SerializedProperty dithering { get; }
         public SerializedProperty stopNaNs { get; }
         public SerializedProperty allowDynamicResolution { get; }
@@ -75,7 +75,7 @@ namespace HN.HNRP.Editor
         public SerializedProperty clearDepth { get; }
         public SerializedProperty antialiasing { get; }
 
-        // HNRP specific properties
+        // HNRP 专属属性
         public SerializedProperty renderGraphViewIndex { get; }
 
     }

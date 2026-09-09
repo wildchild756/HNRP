@@ -5,23 +5,22 @@ using UnityEngine;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Fills a <see cref="GlobalConstantBuffer"/> from a camera's current state.
-    /// Used to push per-camera global shader constants (matrices, camera position,
-    /// screen params) into the <c>ShaderVariablesGlobal</c> cbuffer so offscreen
-    /// cameras (e.g. realtime probe faces) render with their own matrices instead of
-    /// the last <c>SetupCameraProperties</c> camera.
+    /// 从相机当前状态填充 <see cref="GlobalConstantBuffer"/>。
+    /// 用于把每相机的全局 shader 常量（矩阵、相机位置、屏幕参数）推入
+    /// <c>ShaderVariablesGlobal</c> cbuffer，使离屏相机（如实时反射探针面）
+    /// 使用自身矩阵渲染，而非最后一次 <c>SetupCameraProperties</c> 的相机。
     /// </summary>
     public static class GlobalConstantBufferUtility
     {
         /// <summary>
-        /// Fills <paramref name="cb"/> from <paramref name="camera"/>.
+        /// 从 <paramref name="camera"/> 填充 <paramref name="cb"/>。
         /// </summary>
-        /// <param name="camera">The camera whose matrices/parameters to capture.</param>
+        /// <param name="camera">要采集矩阵/参数的相机。</param>
         /// <param name="renderIntoTexture">
-        /// <c>true</c> when the camera renders into a render texture (projection Y is
-        /// flipped); <c>false</c> when rendering into the screen/backbuffer.
+        /// 相机渲染到渲染纹理时为 <c>true</c>（投影 Y 翻转）；
+        /// 渲染到屏幕/后备缓冲时为 <c>false</c>。
         /// </param>
-        /// <param name="cb">The buffer to fill (overwrites matrix/camera fields).</param>
+        /// <param name="cb">要填充的缓冲（覆盖矩阵/相机字段）。</param>
         public static void FillFromCamera(Camera camera, bool renderIntoTexture, ref GlobalConstantBuffer cb)
         {
             float time = Time.time;
@@ -67,6 +66,10 @@ namespace HN.HNRP
         }
     }
 
+    /// <summary>
+    /// 与 HLSL <c>ShaderVariablesGlobal</c> cbuffer 布局一致的全局 shader 常量结构体。
+    /// 字段名须与 shader 侧声明的常量保持一致（属代码关键词，不做汉化）。
+    /// </summary>
     unsafe public struct GlobalConstantBuffer
     {
         public Vector4 _Time;
@@ -89,10 +92,13 @@ namespace HN.HNRP
         public Matrix4x4 unity_MatrixVP;
         public Matrix4x4 unity_MatrixInvVP; 
 
+        /// <summary>视锥体平面参数数组（每平面 4 个 float）。</summary>
         public fixed float _FrustumPlanes[6 * 4];
 
+        /// <summary>光源常量数据（由光源收集填充）。</summary>
         public Vector4 _LightConstantData;
 
+        /// <summary>环境光与反射相关颜色参数。</summary>
         public Vector4 _GlossyEnvironmentColor;
         public Vector4 _GlossyEnvironmentCubeMap_HDR;
         public Vector4 _SubtractiveShadowColor;
@@ -100,13 +106,11 @@ namespace HN.HNRP
         public Vector4 unity_AmbientEquator;
         public Vector4 unity_AmbientGround;
 
+        // 预留但当前未启用的常量：
         // public Vector4 glstate_lightmodel_ambient;
         // public Vector4 unity_IndirectSpecColor;
         // public Vector4 unity_FogParams;
         // public Vector4 unity_FogColor;
-
         // public Vector4 unity_ShadowColor;
     }
-
-
 }

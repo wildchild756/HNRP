@@ -41,11 +41,11 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Per-probe render graph view index.
-        /// Used to select which render graph view from
-        /// <see cref="HNRenderPipelineAsset.reflectionRenderGraphViewBlock"/> to use
-        /// when rendering this probe (realtime face rendering and bake/custom baking).
-        /// The index corresponds to the position in the render graph view keys.
+        /// 每探针的渲染图视图索引。
+        /// 渲染本探针（实时面渲染与烘焙/自定义烘焙）时，用于从
+        /// <see cref="HNRenderPipelineAsset.reflectionRenderGraphViewBlock"/>
+        /// 选择使用哪个渲染图视图。
+        /// 索引对应渲染图视图键列表中的位置。
         /// </summary>
         public int RenderGraphViewIndex
         {

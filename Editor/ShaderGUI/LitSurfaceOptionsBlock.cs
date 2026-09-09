@@ -41,38 +41,38 @@ namespace HN.HNRP.Editor
 
         protected void DrawSurfaceType(MaterialEditor materialEditor)
         {
-            // Surface Type
+            // 表面类型
             DrawPopup(materialEditor, surfaceTypeProperty, Styles.surfaceType, Styles.surfaceTypeNames);
             if ((MaterialGUI.SurfaceType)surfaceTypeProperty.floatValue == MaterialGUI.SurfaceType.Opaque)
             {
                 EditorGUI.indentLevel++;
-                // ZWrite Mode
+                // ZWrite 模式
                 DrawFloatToggle(zwriteProperty, Styles.zwrite);
                 EditorGUI.indentLevel--;
             }
             else if ((MaterialGUI.SurfaceType)surfaceTypeProperty.floatValue == MaterialGUI.SurfaceType.Transparent)
             {
                 EditorGUI.indentLevel++;
-                // Blend Mode
+                // 混合模式
                 DrawPopup(materialEditor, blendModeProperty, Styles.BlendMode, Styles.blendModeNames);
                 EditorGUI.indentLevel--;
             }
 
-            // Alpha Clip
+            // Alpha 裁剪
             DrawFloatToggle(alphaClipProperty, Styles.alphaClip);
             if ((alphaClipProperty != null) && (cutoffProperty != null) && alphaClipProperty.floatValue == 1)
             {
-                // Cutoff
+                // 裁剪阈值
                 materialEditor.ShaderProperty(cutoffProperty, Styles.cutoff, 1);
             }
 
-            // Cull Mode
+            // 剔除模式
             DrawPopup(materialEditor, cullModeProperty, Styles.cullMode, Styles.cullModeNames);
 
-            // ZTest Mode
+            // ZTest 模式
             DrawPopup(materialEditor, ztestModeProperty, Styles.ztestMode, Styles.ztestModeNames);
 
-            // Queue Offset
+            // 队列偏移
             if ((MaterialGUI.SurfaceType)surfaceTypeProperty.floatValue == MaterialGUI.SurfaceType.Opaque)
             {
                 if (alphaClipProperty != null && alphaClipProperty.floatValue > 0.5f)
@@ -153,7 +153,7 @@ namespace HN.HNRP.Editor
                 switch (blendMode)
                 {
                     // srcRGB * srcAlpha + dstRGB * (1 - srcAlpha)
-                    // preserve spec:
+                    // 保留 spec（shader 中取 1 或 srcAlpha）：
                     // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
                     case MaterialGUI.BlendMode.Alpha:
                         srcBlendRGB = BlendMode.SrcAlpha;
@@ -162,7 +162,7 @@ namespace HN.HNRP.Editor
                         dstBlendA = dstBlendRGB;
                         break;
 
-                    // srcRGB < srcAlpha, (alpha multiplied in asset)
+                    // 预乘模式：alpha 已在资源中乘好
                     // srcRGB * 1 + dstRGB * (1 - srcAlpha)
                     case MaterialGUI.BlendMode.Premultiply:
                         srcBlendRGB = BlendMode.One;
@@ -171,8 +171,8 @@ namespace HN.HNRP.Editor
                         dstBlendA = dstBlendRGB;
                         break;
 
-                    // srcRGB * srcAlpha + dstRGB * 1, (alpha controls amount of addition)
-                    // preserve spec:
+                    // srcRGB * srcAlpha + dstRGB * 1（alpha 控制叠加量）
+                    // 保留 spec（shader 中取 1 或 srcAlpha）：
                     // srcRGB * (<in shader> ? 1 : srcAlpha) + dstRGB * (1 - srcAlpha)
                     case MaterialGUI.BlendMode.Additive:
                         srcBlendRGB = BlendMode.SrcAlpha;
@@ -182,8 +182,8 @@ namespace HN.HNRP.Editor
                         break;
 
                     // srcRGB * 0 + dstRGB * srcRGB
-                    // in shader alpha controls amount of multiplication, lerp(1, srcRGB, srcAlpha)
-                    // Multiply affects color only, keep existing alpha.
+                    // shader 中 alpha 控制相乘量：lerp(1, srcRGB, srcAlpha)
+                    // Multiply 仅影响颜色，保留已有 alpha。
                     case MaterialGUI.BlendMode.Multiply:
                         srcBlendRGB = BlendMode.DstColor;
                         dstBlendRGB = BlendMode.Zero;

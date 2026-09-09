@@ -13,103 +13,81 @@ using UnityEngine.Rendering;
 
 namespace HN.HNRP
 {
-    /// <summary>
-    /// Runs cluster-based reflection probe culling via compute shader and outputs
-    /// a reflection probe atlas, a mask buffer, and a probe data buffer for
-    /// downstream passes (e.g. forward / deferred shading).
-    /// </summary>
-    /// <remarks>
-    /// <para><b>New Pass system</b> (ADR-002, ADR-011):
-    /// Inherits from <see cref="Pass"/> instead of the legacy <see cref="PassBase"/>.
-    /// Uses name-based <see cref="TextureSlot"/> and <see cref="ComputeBufferSlot"/>
-    /// outputs for downstream connections instead of index-based slot registration.
-    /// </para>
-    /// <para>
-    /// The compute shader is accessed via
-    /// <see cref="CameraContext.RuntimeResources"/>.<see cref="HNRenderPipelineRuntimeResources.clusterCullingReflectionProbeCS"/>.
-    /// </para>
-    /// </remarks>
     [Pass("Cluster Culling Probe")]
     public sealed class ClusterCullingReflectionProbePass : Pass
     {
-        // ── Configurable parameters ──
-
         /// <summary>
-        /// Parameters for the reflection probe atlas allocated when the
-        /// <see cref="ReflectionProbeAtlasInputSlot"/> input is not connected
-        /// / valid. Default: HDR 4096 atlas with trilinear mip filtering.
-        /// </summary>
-        [SerializeField]
-        private TextureResourceParams m_AtlasParams;
-
-        /// <summary>
-        /// Gets or sets the reflection probe atlas allocation parameters.
+        /// 获取或设置反射探针图集的分配参数。
         /// </summary>
         public TextureResourceParams AtlasParams
         {
-            get => m_AtlasParams;
-            set => m_AtlasParams = value;
+            get => atlasParams;
+            set => atlasParams = value;
         }
 
-        // ── Slots ──
+        // ── Slot ──
 
         /// <summary>
-        /// Gets the input texture slot for the reflection probe atlas
-        /// (<see cref="TextureSlot"/>, <see cref="SlotDirection.Input"/>).
-        /// When connected with a valid handle, this pass writes the blitted
-        /// octahedral data into the upstream atlas; otherwise it allocates its
-        /// own atlas from <see cref="AtlasParams"/>. The result is exposed via
-        /// <see cref="ReflectionProbeAtlasOutputSlot"/> for downstream passes.
+        /// 获取反射探针图集的输入纹理 slot
+        /// （<see cref="TextureSlot"/>，<see cref="SlotDirection.Input"/>）。
+        /// 当连接了有效句柄时，本 pass 将八面体数据 blit 写入上游图集；
+        /// 否则依据 <see cref="AtlasParams"/> 自行分配图集。
+        /// 结果通过 <see cref="ReflectionProbeAtlasOutputSlot"/> 暴露给下游 pass。
         /// </summary>
-        public TextureSlot? ReflectionProbeAtlasInputSlot { get; private set; }
+        public TextureSlot ReflectionProbeAtlasInputSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output texture slot for the reflection probe atlas
-        /// (<see cref="TextureSlot"/>, <see cref="SlotDirection.Output"/>).
-        /// Pass-through of the input atlas after writing, so downstream
-        /// passes can connect without a separate resource node.
+        /// 获取反射探针图集的输出纹理 slot
+        /// （<see cref="TextureSlot"/>，<see cref="SlotDirection.Output"/>）。
+        /// 写入完成后透传输入图集，下游 pass 无需单独的资源节点即可连接。
         /// </summary>
-        public TextureSlot? ReflectionProbeAtlasOutputSlot { get; private set; }
+        public TextureSlot ReflectionProbeAtlasOutputSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output compute buffer slot for the cluster culling
-        /// reflection probe mask buffer
-        /// (<see cref="ComputeBufferSlot"/>, <see cref="SlotDirection.Output"/>).
+        /// 获取簇剔除反射探针掩码缓冲的输出计算缓冲 slot
+        /// （<see cref="ComputeBufferSlot"/>，<see cref="SlotDirection.Output"/>）。
         /// </summary>
-        public ComputeBufferSlot? ClusterCullingReflectionProbeMaskBufferSlot { get; private set; }
+        public ComputeBufferSlot ClusterCullingReflectionProbeMaskBufferSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output compute buffer slot for the cluster culling
-        /// reflection probe data buffer
-        /// (<see cref="ComputeBufferSlot"/>, <see cref="SlotDirection.Output"/>).
+        /// 获取簇剔除反射探针数据缓冲的输出计算缓冲 slot
+        /// （<see cref="ComputeBufferSlot"/>，<see cref="SlotDirection.Output"/>）。
         /// </summary>
-        public ComputeBufferSlot? ClusterCullingReflectionProbeDatasBufferSlot { get; private set; }
+        public ComputeBufferSlot ClusterCullingReflectionProbeDatasBufferSlot { get; private set; }
 
         /// <summary>
-        /// Gets or sets the dictionary of realtime probe cubemap textures rendered
-        /// this frame, keyed by probe instance id. Set by the pipeline after
-        /// Phase B (realtime probe rendering) completes. When set, the pass uses
-        /// these textures instead of reading <c>probe.realtimeTexture</c> directly.
+        /// 获取或设置本帧已渲染的实时探针 cubemap 纹理字典，键为探针实例 id。
+        /// 由渲染管线在 Phase B（实时探针渲染）完成后设置。
+        /// 设置后，本 pass 使用这些纹理，而不再直接读取 <c>probe.realtimeTexture</c>。
         /// </summary>
         public IReadOnlyDictionary<int, Texture> RenderedProbeTextures { get; set; }
 
-        // ── Camera context ──
+        // ── 可配置参数 ──
 
-        private CameraContext? m_Context;
-        private ComputeShader? m_ComputeShader;
+        /// <summary>
+        /// 当 <see cref="ReflectionProbeAtlasInputSlot"/> 输入未连接/无效时，
+        /// 用于分配反射探针图集的参数。默认：HDR 4096 图集、三线性 mip 过滤。
+        /// </summary>
+        [SerializeField]
+        private TextureResourceParams atlasParams;
 
-        // ── Reusable scratch buffers (zero per-frame GC) ──
-        // The render loop fills these pre-allocated buffers every frame instead of
-        // allocating new arrays / lists. Lazy-initialized once, reused forever.
+        // ── 相机上下文 ──
 
-        private List<ProbeEntry> m_ProbeEntries;
-        private ReflectionProbeData4CS[] m_CullingDatas;
-        private ClusterCullingReflectionProbeDatas[] m_SampleDatas;
-        private int4[] m_ScaleOffsetsInt;
-        private Vector4[] m_ScaleOffsetsUV;
-        private Texture[] m_ProbeTextures;
+        private CameraContext cameraContext;
+        private ComputeShader computeShader;
 
-        // ── Constants (mirrored from legacy ClusterCullingReflectionProbePass) ──
+        // ── 可复用暂存缓冲（每帧零 GC）──
+        // 渲染循环每帧填充这些预分配缓冲，而不新建数组/列表。
+        // 懒初始化一次，永久复用。
+
+        private List<ProbeEntry> probeEntries;
+        private ReflectionProbeData4CS[] cullingDatas;
+        private ClusterCullingReflectionProbeDatas[] sampleDatas;
+        private int4[] scaleOffsetsInt;
+        private Vector4[] scaleOffsetsUV;
+        private Texture[] probeTextures;
+
+        // ── 常量（对齐旧版 ClusterCullingReflectionProbePass）──
 
         private const int MaxReflectionProbesOnScreen = 64;
         private const int ReflectionProbeAtlasSize = 4096;
@@ -120,39 +98,36 @@ namespace HN.HNRP
         private const int MaxClusterMaskWords = 4096 * 4;
         private const string ClusterCullingKernelName = "ClusterCullingReflectionProbeCS";
 
-        // ── Constructor ──
+        // ── 构造函数 ──
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ClusterCullingReflectionProbePass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// 初始化 <see cref="ClusterCullingReflectionProbePass"/> 的新实例。
+        /// pass 以默认 HDR 4096 图集参数启动；图集参数可经模板代码 /
+        /// 编辑器缓存 / 运行时动态设置覆盖。
         /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// 参数默认值与带名构造保持一致。
+        /// </remarks>
         public ClusterCullingReflectionProbePass()
+            : base(string.Empty)
         {
-            m_AtlasParams = CreateDefaultAtlasParams();
+            atlasParams = CreateDefaultAtlasParams();
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ClusterCullingReflectionProbePass"/> class.
+        /// 初始化 <see cref="ClusterCullingReflectionProbePass"/> 的新实例。
+        /// pass 以默认 HDR 4096 图集参数启动；
+        /// <see cref="PreRecord"/> 每帧重新推导这些参数。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public ClusterCullingReflectionProbePass(string passName)
             : base(passName)
         {
-        }
-
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            if (source is ClusterCullingReflectionProbePass s)
-            {
-                m_AtlasParams = s.m_AtlasParams;
-            }
-
-            // RenderedProbeTextures is per-frame runtime state set by the
-            // pipeline, never copied.
+            atlasParams = CreateDefaultAtlasParams();
         }
 
         /// <summary>
@@ -178,7 +153,7 @@ namespace HN.HNRP
             };
         }
 
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -197,60 +172,59 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context and resolves the cluster culling compute
-        /// shader from <see cref="CameraContext.RuntimeResources"/>.
+        /// 保存相机上下文，并从 <see cref="CameraContext.RuntimeResources"/> 解析簇剔除
+        /// compute shader。不再重置图集参数 —— 默认值在构造函数初始化，
+        /// 逐帧重置会覆盖模板代码 / 编辑器缓存 / 运行时动态设置的参数。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
-            m_AtlasParams = CreateDefaultAtlasParams();
-            
-            m_Context = context;
+            cameraContext = context;
 
             if (context.RuntimeResources != null)
             {
-                m_ComputeShader = context.RuntimeResources.clusterCullingReflectionProbeCS;
+                computeShader = context.RuntimeResources.clusterCullingReflectionProbeCS;
             }
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Creates the reflection probe atlas (texture), mask buffer, and two probe
-        /// data buffers as render graph resources. Records a render function that:
+        /// 创建反射探针图集（纹理）、掩码缓冲与两个探针数据缓冲作为渲染图资源。
+        /// 记录的渲染函数执行：
         /// <list type="bullet">
-        ///   <item>uploads the visible realtime probe data (culling bounds + sample data)</item>
-        ///   <item>dispatches the cluster culling compute shader to populate the mask buffer</item>
-        ///   <item>blits every realtime probe cubemap into its octahedral atlas region</item>
-        ///   <item>generates the atlas mip chain</item>
+        ///   <item>上传可见实时探针数据（剔除包围盒 + 采样数据）</item>
+        ///   <item>派发簇剔除 compute shader 填充掩码缓冲</item>
+        ///   <item>将每个实时探针 cubemap blit 进其八面体图集区域</item>
+        ///   <item>生成图集 mip 链</item>
         /// </list>
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
-            if (m_ComputeShader == null)
+            if (computeShader == null)
             {
                 Debug.LogError(
-                    "Cluster Culling Reflection Probe Compute Shader is null. " +
-                    "Ensure HNRenderPipelineRuntimeResources is assigned in the pipeline asset.");
-                IsEnabled &= false;
+                    "Cluster Culling Reflection Probe Compute Shader 为 null。 " +
+                    "请确保已在管线资源的 HNRenderPipelineRuntimeResources 中赋值。");
+                IsEnabled = false;
+                return;
             }
 
-            if (m_Context == null)
+            if (cameraContext == null)
             {
-                Debug.LogError("CameraContext is null. Initialize must be called before Record.");
-                IsEnabled &= false;
+                Debug.LogError("CameraContext 为 null。必须在 Record 前调用 Initialize。");
+                IsEnabled = false;
+                return;
             }
 
-            // ── Collect visible probes (baked + realtime) and pack them into the
-            // atlas using the legacy recursive-quad layout ──
-            // Visible baked probes contribute their baked cubemap; realtime probes
-            // (rendered in Phase B before main cameras) contribute their realtime
-            // cubemap. Every visible probe is blitted every frame because the atlas
-            // is a transient render graph resource.
+            // ── 收集可见探针（烘焙 + 实时）并按旧版递归四等分布局打包进图集 ──
+            // 可见的烘焙探针贡献其烘焙 cubemap；实时探针（在主相机之前的
+            // Phase B 渲染）贡献其实时 cubemap。每个可见探针每帧都 blit 一次，
+            // 因为图集是渲染图的瞬态资源。
             EnsureScratchBuffers();
-            List<ProbeEntry> entries = m_ProbeEntries;
+            List<ProbeEntry> entries = probeEntries;
             entries.Clear();
-            if (m_Context.VisibleReflectionProbes.IsCreated)
+            if (cameraContext.VisibleReflectionProbes.IsCreated)
             {
-                var visibleProbes = m_Context.VisibleReflectionProbes;
+                var visibleProbes = cameraContext.VisibleReflectionProbes;
                 for (int i = 0; i < visibleProbes.Length; i++)
                 {
                     ReflectionProbe probe = ReflectionProbeRenderUtils.GetReflectionProbe(visibleProbes[i]);
@@ -259,11 +233,10 @@ namespace HN.HNRP
                         continue;
                     }
 
-                    // Bake mode uses the probe's baked/custom cubemap; realtime mode
-                    // uses the probe's persistent realtime cubemap. Time-slicing only
-                    // controls when the cubemap is re-rendered, not whether the atlas
-                    // includes the probe, so non-refresh frames still use the last
-                    // rendered cubemap instead of dropping the probe.
+                    // 烘焙模式使用探针的烘焙/自定义 cubemap；实时模式使用探针
+                    // 的持久实时 cubemap。时间切片只控制 cubemap 何时重渲染，
+                    // 不控制图集是否包含该探针，因此非刷新帧仍使用上次渲染的
+                    // cubemap，而不是丢弃该探针。
                     Texture texture;
                     if (ReflectionProbeRenderUtils.IsRealtimeProbe(probe))
                     {
@@ -294,15 +267,6 @@ namespace HN.HNRP
             }
 
             int probeCount = Mathf.Min(entries.Count, MaxReflectionProbesOnScreen);
-
-            // ── Assign atlas regions (legacy recursive-quad layout) ──
-            // Larger resolutions claim their region first; offsetMask encodes the
-            // recursive subdivision path (see GetOffset).
-            ReflectionProbeData4CS[] cullingDatas = m_CullingDatas;
-            ClusterCullingReflectionProbeDatas[] sampleDatas = m_SampleDatas;
-            int4[] scaleOffsetsInt = m_ScaleOffsetsInt;
-            Vector4[] scaleOffsetsUV = m_ScaleOffsetsUV;
-            Texture[] probeTextures = m_ProbeTextures;
 
             uint offsetMask = 0;
             int probeIndex = 0;
@@ -346,7 +310,7 @@ namespace HN.HNRP
                         scaleOffset = scaleOffsetUV,
                         mipCount = Mathf.Log(probe.resolution, 2.0f),
                     };
-                    
+
                     scaleOffsetsInt[probeIndex] = scaleOffsetInt;
                     scaleOffsetsUV[probeIndex] = scaleOffsetUV;
                     probeTextures[probeIndex] = entry.Texture;
@@ -363,11 +327,9 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                // ── Input/Output: reflection probe atlas ──
-                // Consume a connected input atlas when its handle is valid;
-                // otherwise allocate the atlas locally from AtlasParams. The
-                // blitted octahedral data is written into it, then exposed for
-                // downstream passes.
+                // ── 输入/输出：反射探针图集 ──
+                // 当输入句柄有效时消费所连接的输入图集；否则依据 AtlasParams
+                // 本地分配图集。blit 后的八面体数据写入其中，再暴露给下游 pass。
 
                 TextureHandle atlasHandle;
                 if (ReflectionProbeAtlasInputSlot != null
@@ -379,7 +341,7 @@ namespace HN.HNRP
                 else
                 {
                     atlasHandle = renderGraph.CreateTexture(
-                        m_AtlasParams.CreateDesc("Reflection Probe Atlas", m_Context.Camera));
+                        atlasParams.CreateDesc("Reflection Probe Atlas", cameraContext.Camera));
                 }
 
                 if (!atlasHandle.IsValid())
@@ -389,13 +351,13 @@ namespace HN.HNRP
 
                 passData.reflectionProbeAtlas = builder.WriteTexture(atlasHandle);
 
-                // Pass-through to output slot for downstream passes.
+                // 透传到输出 slot，供下游 pass 使用。
                 if (ReflectionProbeAtlasOutputSlot != null)
                 {
                     ReflectionProbeAtlasOutputSlot.SetHandle(atlasHandle);
                 }
 
-                // ── Output: mask buffer ──
+                // ── 输出：掩码缓冲 ──
 
                 ComputeBufferHandle maskHandle = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
@@ -405,7 +367,7 @@ namespace HN.HNRP
 
                 passData.clusterCullingReflectionProbeMaskBuffer = builder.WriteComputeBuffer(maskHandle);
 
-                // ── Output: culling data buffer (ReflectionProbeData4CS layout) ──
+                // ── 输出：剔除数据缓冲（ReflectionProbeData4CS 布局）──
 
                 ComputeBufferHandle cullingDatasHandle = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
@@ -415,7 +377,7 @@ namespace HN.HNRP
 
                 passData.cullingDatasBuffer = builder.WriteComputeBuffer(cullingDatasHandle);
 
-                // ── Output: sample data buffer (ClusterCullingReflectionProbeDatas layout) ──
+                // ── 输出：采样数据缓冲（ClusterCullingReflectionProbeDatas 布局）──
 
                 ComputeBufferHandle sampleDatasHandle = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
@@ -425,17 +387,17 @@ namespace HN.HNRP
 
                 passData.sampleDatasBuffer = builder.WriteComputeBuffer(sampleDatasHandle);
 
-                // ── Publish real render graph handles to output slots ──
+                // ── 把真实渲染图句柄发布到输出 slot ──
 
                 ClusterCullingReflectionProbeMaskBufferSlot!.SetHandle(maskHandle);
                 ClusterCullingReflectionProbeDatasBufferSlot!.SetHandle(sampleDatasHandle);
 
-                // ── Compute shader setup ──
+                // ── compute shader 配置 ──
 
-                passData.clusterCullingReflectionProbeCS = m_ComputeShader;
-                passData.clusterCullingKernel = m_ComputeShader.FindKernel(ClusterCullingKernelName);
+                passData.clusterCullingReflectionProbeCS = computeShader;
+                passData.clusterCullingKernel = computeShader.FindKernel(ClusterCullingKernelName);
 
-                Camera camera = m_Context.Camera;
+                Camera camera = cameraContext.Camera;
                 int2 screenResolution = math.int2(camera.pixelWidth, camera.pixelHeight);
                 int3 clusterSize = GetClusterSize(screenResolution);
                 float2 clusterZScaleOffset = GetClusterZScaleOffset(
@@ -445,20 +407,19 @@ namespace HN.HNRP
                 int itemsPerCluster = MaxReflectionProbesOnScreen;
                 int wordsPerCluster = (itemsPerCluster + 31) / 32 + 1;
 
-                // The compute shader transforms cluster slice depths through the GPU
-                // projection (D3D-style z in [0,1]) to clip space, then to world space
-                // to test AABB overlap against probe bounds. Using the raw OpenGL
-                // projectionMatrix (NDC z in [-1,1]) would put half the clip z range
-                // below the shader's [0,1] clamp and break overlap tests.
-                // All passes in HNRP render through RenderGraph which always renders
-                // to render textures internally, so renderIntoTexture is always true.
+                // compute shader 通过 GPU 投影（D3D 风格，z 在 [0,1]）把簇切片深度
+                // 变换到裁剪空间，再到世界空间与探针包围盒做 AABB 重叠测试。
+                // 若直接使用原始 OpenGL projectionMatrix（NDC z 在 [-1,1]），
+                // 一半裁剪 z 范围会低于 shader 的 [0,1] clamp，导致重叠测试失败。
+                // HNRP 所有 pass 均经 RenderGraph 渲染，内部总是渲染到渲染纹理，
+                // 因此 renderIntoTexture 恒为 true。
                 Matrix4x4 gpuProj = GL.GetGPUProjectionMatrix(
                     camera.projectionMatrix, true);
                 Matrix4x4 clipToView = gpuProj.inverse;
                 Matrix4x4 viewToClip = gpuProj;
                 Matrix4x4 clipToWorld = (camera.worldToCameraMatrix * gpuProj).inverse;
 
-                // ── Per-frame params (uploaded to shaders via PushGlobal) ──
+                // ── 每帧参数（经 PushGlobal 上传到 shader）──
 
                 passData.clusterCullingReflectionProbeParams.clusterSizeXY =
                     new Vector2(clusterSize.x, clusterSize.y);
@@ -471,8 +432,8 @@ namespace HN.HNRP
                 passData.clusterCullingReflectionProbeParams.unused0 = 0.0f;
                 passData.clusterCullingReflectionProbeParams.unused1 = 0.0f;
 
-                // ── Store per-frame values on the (pooled) pass data so the
-                // render function closure only captures `this` (zero allocation) ──
+                // ── 把每帧值存到池化 pass data 上，
+                // 使渲染函数闭包只捕获 `this`（零分配）──
 
                 passData.clusterSize = clusterSize;
                 passData.probeCount = probeCount;
@@ -481,7 +442,7 @@ namespace HN.HNRP
                 passData.viewToClip = viewToClip;
                 passData.clipToWorld = clipToWorld;
 
-                // ── Render function ──
+                // ── 渲染函数 ──
 
                 builder.SetRenderFunc(
                     (ClusterCullingReflectionProbePassData data, RenderGraphContext ctx) =>
@@ -491,9 +452,9 @@ namespace HN.HNRP
                             return;
                         }
 
-                        // Upload probe data for the culling dispatch and the shader.
-                        ctx.cmd.SetBufferData(data.cullingDatasBuffer, m_CullingDatas);
-                        ctx.cmd.SetBufferData(data.sampleDatasBuffer, m_SampleDatas);
+                        // 上传剔除派发与 shader 使用的探针数据。
+                        ctx.cmd.SetBufferData(data.cullingDatasBuffer, this.cullingDatas);
+                        ctx.cmd.SetBufferData(data.sampleDatasBuffer, this.sampleDatas);
 
                         ctx.cmd.SetComputeBufferParam(
                             data.clusterCullingReflectionProbeCS,
@@ -537,9 +498,9 @@ namespace HN.HNRP
                             PropertyIDs.cullingClipToWorldMatrix,
                             data.clipToWorld);
 
-                        // Dispatch one thread per cluster over the full 3D grid.
-                        // numthreads(8,8,1): thread groups cover x/y, thread groups
-                        // along z cover every depth slice (id.z = cluster index z).
+                        // 在整个 3D 网格上按每簇一个线程派发。
+                        // numthreads(8,8,1)：线程组覆盖 x/y，z 向线程组覆盖每个深度
+                        // 切片（id.z 即簇索引的 z）。
                         int threadGroupX = (clusterSizeInPass.x + 7) / 8;
                         int threadGroupY = (clusterSizeInPass.y + 7) / 8;
                         ctx.cmd.DispatchCompute(
@@ -549,14 +510,13 @@ namespace HN.HNRP
                             threadGroupY,
                             clusterSizeInPass.z);
 
-                        // ── Blit every visible probe cubemap into its atlas region ──
-                        // The octahedral projection is drawn into the region's mip 0
-                        // (padding adjusted), then GenerateMips builds the remaining
-                        // atlas mip chain. This avoids depending on the source cubemap
-                        // having valid mips (realtime cubemaps may not).
+                        // ── 把每个可见探针 cubemap blit 进其图集区域 ──
+                        // 八面体投影被绘制到区域 mip 0（已计入 padding），
+                        // 再由 GenerateMips 生成其余图集 mip 链。
+                        // 这样不依赖源 cubemap 自带有效 mip（实时 cubemap 可能没有）。
                         for (int i = 0; i < probeCountInPass; i++)
                         {
-                            Texture source = m_ProbeTextures[i];
+                            Texture source = this.probeTextures[i];
                             if (source == null)
                             {
                                 continue;
@@ -564,7 +524,7 @@ namespace HN.HNRP
 
                             int texelPadding = ReflectionProbeAtlasTexelPadding;
                             Vector2 textureSizeWithoutPadding =
-                                GetTextureSizeWithoutPadding(m_ScaleOffsetsUV[i], texelPadding);
+                                GetTextureSizeWithoutPadding(this.scaleOffsetsUV[i], texelPadding);
 
                             ctx.cmd.SetRenderTarget(
                                 (RenderTargetIdentifier)data.reflectionProbeAtlas);
@@ -574,7 +534,7 @@ namespace HN.HNRP
                                 propertyBlock,
                                 source,
                                 textureSizeWithoutPadding,
-                                m_ScaleOffsetsUV[i],
+                                this.scaleOffsetsUV[i],
                                 0,
                                 true,
                                 texelPadding);
@@ -585,8 +545,7 @@ namespace HN.HNRP
                             ctx.cmd.GenerateMips((RenderTexture)data.reflectionProbeAtlas);
                         }
 
-                        // Upload cluster culling params so fragment shaders can
-                        // resolve cluster indices for probe iteration.
+                        // 上传簇剔除参数，使片元 shader 能解析簇索引来迭代探针。
                         ConstantBuffer.PushGlobal(
                             ctx.cmd,
                             data.clusterCullingReflectionProbeParams,
@@ -598,35 +557,34 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held by this pass.
-            m_ComputeShader = null;
-            m_Context = null;
+            // 本 pass 不持有可释放资源。
+            computeShader = null;
+            cameraContext = null;
         }
 
-        // ── Scratch buffer helpers ──
+        // ── 暂存缓冲辅助 ──
 
         /// <summary>
-        /// Lazily allocates the per-frame scratch buffers once and reuses them
-        /// forever, keeping the render loop allocation-free.
+        /// 懒分配每帧暂存缓冲，一次分配永久复用，使渲染循环保持零分配。
         /// </summary>
         private void EnsureScratchBuffers()
         {
-            if (m_ProbeEntries == null)
+            if (probeEntries == null)
             {
-                m_ProbeEntries = new List<ProbeEntry>(MaxReflectionProbesOnScreen);
-                m_CullingDatas = new ReflectionProbeData4CS[MaxReflectionProbesOnScreen];
-                m_SampleDatas = new ClusterCullingReflectionProbeDatas[MaxReflectionProbesOnScreen];
-                m_ScaleOffsetsInt = new int4[MaxReflectionProbesOnScreen];
-                m_ScaleOffsetsUV = new Vector4[MaxReflectionProbesOnScreen];
-                m_ProbeTextures = new Texture[MaxReflectionProbesOnScreen];
+                probeEntries = new List<ProbeEntry>(MaxReflectionProbesOnScreen);
+                cullingDatas = new ReflectionProbeData4CS[MaxReflectionProbesOnScreen];
+                sampleDatas = new ClusterCullingReflectionProbeDatas[MaxReflectionProbesOnScreen];
+                scaleOffsetsInt = new int4[MaxReflectionProbesOnScreen];
+                scaleOffsetsUV = new Vector4[MaxReflectionProbesOnScreen];
+                probeTextures = new Texture[MaxReflectionProbesOnScreen];
             }
         }
 
-        // ── Atlas layout helpers (legacy recursive-quad layout) ──
+        // ── 图集布局辅助（旧版递归四等分布局）──
 
         /// <summary>
-        /// Maps a probe resolution to an atlas level: <c>0..4</c> maps
-        /// <c>4096..256</c> texels per probe. Unsupported resolutions return <c>-1</c>.
+        /// 把探针分辨率映射为图集层级：<c>0..4</c> 分别对应每探针
+        /// <c>4096..256</c> 纹素。不支持的分辨率返回 <c>-1</c>。
         /// </summary>
         private static int AtlasLevelForResolution(int resolution)
         {
@@ -636,12 +594,10 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Computes the atlas region offset for a probe from the recursive-quad
-        /// <paramref name="offsetMask"/>.
-        /// The mask stores the subdivision path bitwise: the effective bits are the
-        /// middle 2 * 5 = 10 bits (15..24); adjacent bit pairs (low = x, high = y)
-        /// encode the recursive quarter split, supporting probe resolutions from
-        /// 4096 down to 256.
+        /// 依据递归四等分 <paramref name="offsetMask"/> 计算探针的图集区域偏移。
+        /// 掩码按位存储细分路径：有效位为中间 2 * 5 = 10 位（15..24）；
+        /// 相邻位对（低为 x、高为 y）编码递归四分之一划分，
+        /// 支持 4096 到 256 的探针分辨率。
         /// </summary>
         private static void GetOffset(uint offsetMask, out int offsetX, out int offsetY)
         {
@@ -670,9 +626,9 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Converts an integer atlas region (size + offset in texels) to a normalized
-        /// scale/bias vector without padding — the value stored in the datas buffer
-        /// and consumed by <c>GetReflectionProbeAtlasUV</c>.
+        /// 把整数图集区域（尺寸 + 纹素偏移）转换为不含 padding 的归一化
+        /// 缩放/偏移向量——即存入数据缓冲、由 <c>GetReflectionProbeAtlasUV</c>
+        /// 消费的值。
         /// </summary>
         private static Vector4 GetTextureScaleOffsetWithoutPaddingInAtlas(int4 scaleOffset)
         {
@@ -685,8 +641,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Computes the source texture size (in texels) excluding padding for a
-        /// normalized atlas region.
+        /// 依据归一化图集区域计算源纹理尺寸（纹素，不含 padding）。
         /// </summary>
         private static Vector2 GetTextureSizeWithoutPadding(Vector4 scaleOffset, int texelPadding)
         {
@@ -696,7 +651,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// A visible probe scheduled for atlas packing this frame.
+        /// 本帧已排入图集打包的可见探针。
         /// </summary>
         private struct ProbeEntry
         {
@@ -705,7 +660,7 @@ namespace HN.HNRP
             public int Level;
         }
 
-        // ── Cluster size computation ──
+        // ── 簇尺寸计算 ──
 
         private const int ClusterMinTileSize = 8;
         private const int ClusterMaxZSlice = 128;
@@ -713,10 +668,9 @@ namespace HN.HNRP
 
         private static int3 GetClusterSize(int2 screenResolution)
         {
-            // Each cluster stores wordsPerCluster uints in the mask buffer
-            // (header + one word per 32 probe bits). The slice count must be
-            // derived from the mask buffer capacity divided by words per
-            // cluster, otherwise the compute shader writes past the buffer end.
+            // 每个簇在掩码缓冲中存 wordsPerCluster 个 uint
+            // （header + 每 32 个探针位一个字）。切片数量必须由掩码缓冲
+            // 容量除以每簇字数得出，否则 compute shader 会写出缓冲末尾。
             int wordsPerCluster = (MaxReflectionProbesOnScreen + 31) / 32 + 1;
             int2 clusterSizeXY = new int2(1, 1);
             int sliceCount = ClusterMinZSlice;
@@ -755,226 +709,220 @@ namespace HN.HNRP
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for
-        /// <see cref="ClusterCullingReflectionProbePass"/>.
+        /// <see cref="ClusterCullingReflectionProbePass"/> 的渲染图 pass 数据容器。
         /// </summary>
         private sealed class ClusterCullingReflectionProbePassData
         {
             /// <summary>
-            /// The reflection probe atlas texture handle.
+            /// 反射探针图集纹理句柄。
             /// </summary>
             public TextureHandle reflectionProbeAtlas;
 
             /// <summary>
-            /// The cluster culling mask buffer handle.
+            /// 簇剔除掩码缓冲句柄。
             /// </summary>
             public ComputeBufferHandle clusterCullingReflectionProbeMaskBuffer;
 
             /// <summary>
-            /// The cluster culling probe culling data buffer handle
-            /// (<see cref="ReflectionProbeData4CS"/> layout, fed to the compute shader).
+            /// 簇剔除探针剔除数据缓冲句柄
+            /// （<see cref="ReflectionProbeData4CS"/> 布局，喂给 compute shader）。
             /// </summary>
             public ComputeBufferHandle cullingDatasBuffer;
 
             /// <summary>
-            /// The cluster culling probe sample data buffer handle
-            /// (<see cref="ClusterCullingReflectionProbeDatas"/> layout, consumed by shaders).
+            /// 簇剔除探针采样数据缓冲句柄
+            /// （<see cref="ClusterCullingReflectionProbeDatas"/> 布局，由 shader 消费）。
             /// </summary>
             public ComputeBufferHandle sampleDatasBuffer;
 
             /// <summary>
-            /// The cluster culling compute shader.
+            /// 簇剔除 compute shader。
             /// </summary>
             public ComputeShader clusterCullingReflectionProbeCS;
 
             /// <summary>
-            /// The kernel index for the culling dispatch.
+            /// 剔除派发使用的 kernel 索引。
             /// </summary>
             public int clusterCullingKernel;
 
             /// <summary>
-            /// The cluster culling parameters uploaded to shaders via
-            /// <c>_ClusterCullingReflectionProbeParamsBuffer</c>.
+            /// 经 <c>_ClusterCullingReflectionProbeParamsBuffer</c> 上传到
+            /// shader 的簇剔除参数。
             /// </summary>
             public ClusterCullingReflectionProbeParams clusterCullingReflectionProbeParams;
 
             /// <summary>
-            /// The cluster grid dimensions for this frame.
+            /// 本帧簇网格尺寸。
             /// </summary>
             public int3 clusterSize;
 
             /// <summary>
-            /// The number of probes packed into the atlas this frame.
+            /// 本帧打包进图集的探针数量。
             /// </summary>
             public int probeCount;
 
             /// <summary>
-            /// Whether the current camera is orthographic.
+            /// 当前相机是否为正交投影。
             /// </summary>
             public bool cameraOrthographic;
 
             /// <summary>
-            /// The clip-to-view matrix.
+            /// 裁剪空间到视图空间矩阵。
             /// </summary>
             public Matrix4x4 clipToView;
 
             /// <summary>
-            /// The view-to-clip matrix.
+            /// 视图空间到裁剪空间矩阵。
             /// </summary>
             public Matrix4x4 viewToClip;
 
             /// <summary>
-            /// The clip-to-world matrix.
+            /// 裁剪空间到世界空间矩阵。
             /// </summary>
             public Matrix4x4 clipToWorld;
         }
 
-        // ── Property IDs ──
+        // ── shader 属性 ID ──
 
         /// <summary>
-        /// Shader property identifiers for cluster culling reflection probe
-        /// compute shader parameters.
-        /// Mirrors the shader property IDs used by the cluster culling
-        /// reflection probe compute shader.
+        /// 簇剔除反射探针 compute shader 参数的 shader 属性标识。
+        /// 与簇剔除反射探针 compute shader 使用的属性 ID 保持一致。
         /// </summary>
         public static class PropertyIDs
         {
             /// <summary>
-            /// Reflection probe atlas texture.
-            /// Value: <c>_ReflectionProbeAtlas</c>.
+            /// 反射探针图集纹理。值：<c>_ReflectionProbeAtlas</c>。
             /// </summary>
             public static readonly int reflectionProbeAtlas =
                 Shader.PropertyToID("_ReflectionProbeAtlas");
 
             /// <summary>
-            /// Cluster culling reflection probe mask buffer (RWStructuredBuffer).
-            /// Value: <c>_ClusterCullingReflectionProbeMaskBuffer</c>.
+            /// 簇剔除反射探针掩码缓冲（RWStructuredBuffer）。
+            /// 值：<c>_ClusterCullingReflectionProbeMaskBuffer</c>。
             /// </summary>
             public static readonly int clusterCullingReflectionProbeMaskBuffer =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeMaskBuffer");
 
             /// <summary>
-            /// Cluster culling reflection probe data buffer (RWStructuredBuffer).
-            /// Value: <c>_ClusterCullingReflectionProbeDatasBuffer</c>.
+            /// 簇剔除反射探针数据缓冲（RWStructuredBuffer）。
+            /// 值：<c>_ClusterCullingReflectionProbeDatasBuffer</c>。
             /// </summary>
             public static readonly int clusterCullingReflectionProbeDatasBuffer =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeDatasBuffer");
 
             /// <summary>
-            /// Culling params 0: x=z scale, y=z offset, z=wordsPerCluster, w=isOrthographic.
-            /// Value: <c>_ClusterCullingReflectionProbeParams0</c>.
+            /// 剔除参数 0：x=z 缩放、y=z 偏移、z=wordsPerCluster、w=isOrthographic。
+            /// 值：<c>_ClusterCullingReflectionProbeParams0</c>。
             /// </summary>
             public static readonly int cullingParams0 =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeParams0");
 
             /// <summary>
-            /// Culling params 1: xyz=clusterSize, w=probeCount.
-            /// Value: <c>_ClusterCullingReflectionProbeParams1</c>.
+            /// 剔除参数 1：xyz=clusterSize、w=probeCount。
+            /// 值：<c>_ClusterCullingReflectionProbeParams1</c>。
             /// </summary>
             public static readonly int cullingParams1 =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeParams1");
 
             /// <summary>
-            /// Clip-to-view matrix.
-            /// Value: <c>_ClusterCullingReflectionProbeClipToView</c>.
+            /// 裁剪空间到视图空间矩阵。值：<c>_ClusterCullingReflectionProbeClipToView</c>。
             /// </summary>
             public static readonly int cullingClipToViewMatrix =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeClipToView");
 
             /// <summary>
-            /// View-to-clip matrix.
-            /// Value: <c>_ClusterCullingReflectionProbeViewToClip</c>.
+            /// 视图空间到裁剪空间矩阵。值：<c>_ClusterCullingReflectionProbeViewToClip</c>。
             /// </summary>
             public static readonly int cullingViewToClipMatrix =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeViewToClip");
 
             /// <summary>
-            /// Clip-to-world matrix.
-            /// Value: <c>_ClusterCullingReflectionProbeClipToWorld</c>.
+            /// 裁剪空间到世界空间矩阵。值：<c>_ClusterCullingReflectionProbeClipToWorld</c>。
             /// </summary>
             public static readonly int cullingClipToWorldMatrix =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeClipToWorld");
 
             /// <summary>
-            /// Cluster culling reflection probe params buffer (structured buffer for probe parameters).
-            /// Value: <c>_ClusterCullingReflectionProbeParamsBuffer</c>.
+            /// 簇剔除反射探针参数缓冲（探针参数结构化缓冲）。
+            /// 值：<c>_ClusterCullingReflectionProbeParamsBuffer</c>。
             /// </summary>
             public static readonly int clusterCullingReflectionProbeParamsBuffer =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeParamsBuffer");
 
             /// <summary>
-            /// Reflection probe data for compute shader buffer.
-            /// Value: <c>_ClusterCullingReflectionProbeDatas4CSBuffer</c>.
+            /// 供 compute shader 使用的反射探针数据缓冲。
+            /// 值：<c>_ClusterCullingReflectionProbeDatas4CSBuffer</c>。
             /// </summary>
             public static readonly int reflectionProbeDatas4CSBuffer =
                 Shader.PropertyToID("_ClusterCullingReflectionProbeDatas4CSBuffer");
         }
 
-        // ── Cluster culling data structures (moved from legacy ClusterCullingReflectionProbePass) ──
+        // ── 簇剔除数据结构（自旧版 ClusterCullingReflectionProbePass 迁移）──
     }
 
     /// <summary>
-    /// Per-probe data for compute shader culling.
-    /// Each element holds the world-space bound center and extents for a single reflection probe.
+    /// 供 compute shader 剔除的单探针数据。
+    /// 每个元素保存单个反射探针的世界空间包围盒中心与尺寸。
     /// </summary>
     [Serializable]
     public struct ReflectionProbeData4CS
     {
         /// <summary>
-        /// The world-space bound center of the reflection probe.
+        /// 反射探针世界空间包围盒中心。
         /// </summary>
         public float3 boundCenter;
 
         /// <summary>
-        /// The world-space bound extents of the reflection probe.
+        /// 反射探针世界空间包围盒尺寸。
         /// </summary>
         public float3 boundExtents;
     }
 
     /// <summary>
-    /// Per-probe rendering data passed to the shader after culling.
-    /// Mirrors the legacy <c>ClusterCullingReflectionProbeDatas</c> struct.
+    /// 剔除后传给 shader 的单探针渲染数据。
+    /// 与旧版 <c>ClusterCullingReflectionProbeDatas</c> 结构保持一致。
     /// </summary>
     [Serializable]
     unsafe public struct ClusterCullingReflectionProbeDatas
     {
         /// <summary>
-        /// The maximum corner of the probe bounding box in world space.
+        /// 探针世界空间包围盒最大角点。
         /// </summary>
         public Vector3 boxMax;
 
         /// <summary>
-        /// The blend distance for cross-fading between probes.
+        /// 探针间交叉淡化的混合距离。
         /// </summary>
         public float blendDistance;
 
         /// <summary>
-        /// The minimum corner of the probe bounding box in world space.
+        /// 探针世界空间包围盒最小角点。
         /// </summary>
         public Vector3 boxMin;
 
         /// <summary>
-        /// The importance weight of this probe.
+        /// 本探针的重要性权重。
         /// </summary>
         public float importance;
 
         /// <summary>
-        /// The world-space position of the reflection probe.
+        /// 反射探针的世界空间位置。
         /// </summary>
         public Vector3 positionWS;
 
         /// <summary>
-        /// The intensity multiplier for this probe's contribution.
+        /// 本探针贡献的强度倍率。
         /// </summary>
         public float intensity;
 
         /// <summary>
-        /// The scale and offset for sampling the probe cubemap.
+        /// 采样探针 cubemap 使用的缩放与偏移。
         /// </summary>
         public Vector4 scaleOffset;
 
         /// <summary>
-        /// The mip count of current probe cubemap. The probe cubemap with different resolution has different mip count.
+        /// 当前探针 cubemap 的 mip 数量。不同分辨率的探针 cubemap
+        /// 拥有不同的 mip 数量。
         /// </summary>
         public float mipCount;
 
@@ -982,39 +930,39 @@ namespace HN.HNRP
     }
 
     /// <summary>
-    /// Cluster culling parameters passed to the compute shader.
-    /// Mirrors the legacy <c>ClusterCullingReflectionProbeParams</c> struct.
+    /// 传给 compute shader 的簇剔除参数。
+    /// 与旧版 <c>ClusterCullingReflectionProbeParams</c> 结构保持一致。
     /// </summary>
     [Serializable]
     unsafe public struct ClusterCullingReflectionProbeParams
     {
         /// <summary>
-        /// The cluster dimensions in screen space (XY).
+        /// 屏幕空间簇尺寸（XY）。
         /// </summary>
         public Vector2 clusterSizeXY;
 
         /// <summary>
-        /// The cluster Z scale and offset for depth slicing.
+        /// 簇深度切片的 Z 轴缩放与偏移。
         /// </summary>
         public Vector2 clusterZScaleOffset;
 
         /// <summary>
-        /// The number of 32-bit words per cluster in the mask buffer.
+        /// 掩码缓冲中每簇的 32 位字数。
         /// </summary>
         public int wordsPerCluster;
 
         /// <summary>
-        /// The total number of reflection probes.
+        /// 反射探针总数。
         /// </summary>
         public int reflectionProbeCount;
 
         /// <summary>
-        /// Unused padding (field 0).
+        /// 未用填充（字段 0）。
         /// </summary>
         public float unused0;
 
         /// <summary>
-        /// Unused padding (field 1).
+        /// 未用填充（字段 1）。
         /// </summary>
         public float unused1;
     }

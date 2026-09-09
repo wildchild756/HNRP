@@ -11,42 +11,41 @@ using UnityEngine;
 namespace HN.HNRP.Editor
 {
     /// <summary>
-    /// Build-time code generator that scans all assemblies for types decorated with
-    /// <see cref="PassAttribute"/> and generates a hardcoded registration table in
-    /// <c>PassRegistryGenerated.cs</c>, enabling zero-reflection pass registration
-    /// in Player builds.
+    /// 构建期代码生成器：扫描所有程序集中带 <see cref="PassAttribute"/> 的类型，
+    /// 在 <c>PassRegistryGenerated.cs</c> 生成硬编码注册表，
+    /// 使 Player 构建实现零反射的 pass 注册。
     /// </summary>
     /// <remarks>
-    /// Triggers:
+    /// 触发时机：
     /// <list type="bullet">
-    /// <item><see cref="InitializeOnLoadAttribute"/> — runs after script compilation in Editor</item>
-    /// <item><see cref="IPreprocessBuildWithReport"/> — runs before every Player build</item>
+    /// <item><see cref="InitializeOnLoadAttribute"/> —— Editor 中脚本编译后运行</item>
+    /// <item><see cref="IPreprocessBuildWithReport"/> —— 每次 Player 构建前运行</item>
     /// </list>
     /// </remarks>
     [InitializeOnLoad]
     public sealed class PassRegistryGenerator : IPreprocessBuildWithReport
     {
         /// <summary>
-        /// Relative path from the project root to the generated file.
+        /// 生成文件相对项目根目录的路径。
         /// </summary>
         private const string GeneratedFilePath = "Assets/HNRP/Runtime/Core/Generated/PassRegistryGenerated.cs";
 
         /// <summary>
-        /// Assembly name prefixes that are skipped during scanning (Unity internals, system libs).
+        /// 扫描期间跳过的程序集名称前缀（Unity 内部、系统库）。
         /// </summary>
         private static readonly HashSet<string> SkippedAssemblyPrefixes = new()
         {
             "System", "System.", "Microsoft.", "mscorlib", "netstandard",
             "Unity", "UnityEngine", "UnityEditor", "Unity.",
             "Mono.", "nunit.", "Newtonsoft.", "ExCSS",
-            // Test assemblies must never leak into the generated registration table,
-            // otherwise Player builds fail to compile (reference to test-only types).
+            // 测试程序集绝不能泄漏进生成的注册表，
+            // 否则 Player 构建会因引用仅测试侧类型而编译失败。
             "HN.HNRP.Tests",
         };
 
         /// <summary>
-        /// Static constructor registered via <see cref="InitializeOnLoadAttribute"/>.
-        /// Schedules generation after the Editor is fully initialized.
+        /// 通过 <see cref="InitializeOnLoadAttribute"/> 注册的静态构造函数。
+        /// 在 Editor 完全初始化后调度代码生成。
         /// </summary>
         static PassRegistryGenerator()
         {
@@ -63,8 +62,8 @@ namespace HN.HNRP.Editor
         }
 
         /// <summary>
-        /// Scans all loaded assemblies for <see cref="Pass"/> subclasses decorated with
-        /// <see cref="PassAttribute"/> and writes the generated registration file.
+        /// 扫描所有已加载程序集中带 <see cref="PassAttribute"/> 的
+        /// <see cref="Pass"/> 子类，并写出生成的注册文件。
         /// </summary>
         [MenuItem("HNRP/Generate Pass Registry")]
         public static void Generate()
@@ -80,7 +79,7 @@ namespace HN.HNRP.Editor
                 Directory.CreateDirectory(directory);
             }
 
-            // Only write if content changed to avoid unnecessary recompilation
+            // 仅当内容变化时才写入，避免无谓的重新编译。
             string existingContent = File.Exists(fullPath) ? File.ReadAllText(fullPath) : null;
             if (existingContent == fileContent)
             {
@@ -94,11 +93,11 @@ namespace HN.HNRP.Editor
         }
 
         /// <summary>
-        /// Discovers all <see cref="Pass"/> subclasses with <see cref="PassAttribute"/>
-        /// across all loaded assemblies.
+        /// 跨所有已加载程序集发现带 <see cref="PassAttribute"/> 的
+        /// <see cref="Pass"/> 子类。
         /// </summary>
         /// <returns>
-        /// A sorted list of (DisplayName, FullTypeName) tuples for all discovered passes.
+        /// 所有发现 pass 的按显示名排序的（DisplayName、FullTypeName）元组列表。
         /// </returns>
         private static List<(string DisplayName, string FullTypeName)> DiscoverPasses()
         {
@@ -123,7 +122,7 @@ namespace HN.HNRP.Editor
 
                 foreach (Type type in types)
                 {
-                    // Skip abstract types, non-Pass types, and nested types
+                    // 跳过抽象类型、非 Pass 类型与嵌套类型。
                     if (type.IsAbstract ||
                         !type.IsSubclassOf(typeof(Pass)) ||
                         type.IsNested)
@@ -143,15 +142,15 @@ namespace HN.HNRP.Editor
                 }
             }
 
-            // Sort by display name for deterministic output
+            // 按显示名排序以保证输出确定。
             result.Sort((a, b) => string.CompareOrdinal(a.DisplayName, b.DisplayName));
 
             return result;
         }
 
         /// <summary>
-        /// Determines whether an assembly should be skipped during pass discovery.
-        /// Skips system assemblies, Unity internals, and test assemblies.
+        /// 判断 pass 发现期间某程序集是否应被跳过。
+        /// 跳过系统程序集、Unity 内部与测试程序集。
         /// </summary>
         private static bool ShouldSkipAssembly(Assembly assembly)
         {
@@ -174,37 +173,37 @@ namespace HN.HNRP.Editor
         }
 
         /// <summary>
-        /// Builds a C#-safe fully qualified type name for use in generated code.
-        /// Handles nested types (replaces '+' with '.') and generic types gracefully.
+        /// 构造供生成代码使用的 C# 安全全限定类型名。
+        /// 优雅处理嵌套类型（'+' 替换为 '.'）与泛型类型。
         /// </summary>
         private static string GetQualifiedTypeName(Type type)
         {
             if (type.IsGenericType)
             {
-                // Generic Pass types are unusual; emit a warning and use the simple name
+                // 泛型 Pass 类型很罕见；发出警告并使用简单名。
                 Debug.LogWarning(
                     $"[PassRegistryGenerator] Generic pass type detected: {type.FullName}. " +
                     "Registration may be incomplete.");
                 return type.Name;
             }
 
-            // FullName uses '+' for nested types; C# uses '.'
+            // FullName 对嵌套类型使用 '+';C# 使用 '.'。
             string name = type.FullName ?? type.Name;
             return name.Replace('+', '.');
         }
 
         /// <summary>
-        /// Builds the complete content of the generated registration file.
+        /// 构建生成注册文件的完整内容。
         /// </summary>
-        /// <param name="passes">The discovered passes to register.</param>
-        /// <returns>The full file content as a string.</returns>
+        /// <param name="passes">要注册的已发现 pass。</param>
+        /// <returns>完整文件内容字符串。</returns>
         private static string BuildGeneratedFile(List<(string DisplayName, string FullTypeName)> passes)
         {
             var sb = new StringBuilder();
 
-            sb.AppendLine("// Auto-generated. Do not edit.");
-            sb.AppendLine("// Generated by PassRegistryGenerator during the build process.");
-            sb.AppendLine("// This file provides zero-reflection pass registration for Player builds.");
+            sb.AppendLine("// 自动生成，请勿手动编辑。");
+            sb.AppendLine("// 由 PassRegistryGenerator 在构建过程中生成。");
+            sb.AppendLine("// 该文件为 Player 构建提供零反射的 pass 注册。");
             sb.AppendLine();
             sb.AppendLine("namespace HN.HNRP");
             sb.AppendLine("{");
@@ -215,7 +214,7 @@ namespace HN.HNRP.Editor
 
             if (passes.Count == 0)
             {
-                sb.AppendLine("            // No passes discovered. Add [Pass(\"Name\")] to concrete Pass subclasses.");
+                sb.AppendLine("            // 未发现 pass。请为具体 Pass 子类添加 [Pass(\"Name\")]。");
             }
             else
             {

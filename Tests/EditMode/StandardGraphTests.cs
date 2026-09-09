@@ -12,18 +12,15 @@ using HN.HNRP;
 namespace HN.HNRP.Tests
 {
     /// <summary>
-    /// Tests for <c>Runtime/Resources/RenderGraphs/StandardGraph.asset</c>.
-    /// Verifies the asset loads correctly, <see cref="RenderGraphAsset.Build"/>
-    /// instantiates the expected pass set, materializes the four resource nodes
-    /// (color / depth buffers and both renderer lists), connects the key slots
-    /// (resource nodes plus slot-connection chains for lighting / probe data),
-    /// and orders passes topologically.
+    /// 针对 <c>Runtime/Resources/RenderGraphs/StandardGraph.asset</c> 的测试。
+    /// 验证资源能正确加载、<see cref="RenderGraphAsset.Build"/> 实例化预期的
+    /// pass 集合、物化四个资源节点（color/depth 缓冲与两类渲染器列表）、
+    /// 连接关键槽（资源节点加上光照/探针数据的槽连接链），并按拓扑排序 pass。
     /// </summary>
     public sealed class StandardGraphTests
     {
         /// <summary>
-        /// The expected instance names of the passes in StandardGraph, in
-        /// topological (dependency) order.
+        /// StandardGraph 中各 pass 的预期实例名，按拓扑（依赖）序排列。
         /// </summary>
         private static readonly string[] ExpectedPassNames =
         {
@@ -32,8 +29,8 @@ namespace HN.HNRP.Tests
         };
 
         /// <summary>
-        /// Ensures <see cref="PassRegistry"/> is populated (real passes only —
-        /// no stubs) before each test.
+        /// 每个测试前确保 <see cref="PassRegistry"/> 已填充
+        /// （仅真实 pass —— 无 stub）。
         /// </summary>
         [SetUp]
         public void SetUp()
@@ -42,7 +39,7 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Restores the clean registry after each test.
+        /// 每个测试后恢复干净的注册表。
         /// </summary>
         [TearDown]
         public void TearDown()
@@ -50,11 +47,11 @@ namespace HN.HNRP.Tests
             PassRegistry.RegisterAll();
         }
 
-        #region Asset Loading
+        #region 资源加载
 
         /// <summary>
-        /// <c>StandardGraph.asset</c> can be loaded from <c>Resources/RenderGraphs</c>
-        /// and is a non-null <see cref="RenderGraphAsset"/>.
+        /// <c>StandardGraph.asset</c> 可从 <c>Resources/RenderGraphs</c> 加载，
+        /// 且是非空 <see cref="RenderGraphAsset"/>。
         /// </summary>
         [Test]
         public void Load_Asset_IsNotNullAndCorrectType()
@@ -69,11 +66,11 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Pass Composition
+        #region Build —— Pass 组成
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> succeeds on the real asset and
-        /// produces exactly the expected pass set in topological order.
+        /// <see cref="RenderGraphAsset.Build"/> 在真实资源上成功执行，
+        /// 且产出与预期完全一致、按拓扑序排列的 pass 集合。
         /// </summary>
         [Test]
         public void Build_ProducesExpectedPasses()
@@ -100,18 +97,16 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Connections
+        #region Build —— 连接
 
         /// <summary>
-        /// After <see cref="RenderGraphAsset.Build"/>, the key input slots of
-        /// every rendering pass are connected. Under the pass-owned resource
-        /// model (ADR-017) the chain-head color / depth / renderer-list slots
-        /// are intentionally unconnected — the pass allocates them from its own
-        /// parameters; lighting / probe data flows through
-        /// <see cref="SlotConnection"/> pass-to-pass chains (e.g.
-        /// <c>buildLight.lightDatasBuffer</c> → <c>forwardOpaque.LightDatas</c>),
-        /// and the color target chains forwardOpaque → sky → transparency →
-        /// wireOverlay / finalBlit.
+        /// <see cref="RenderGraphAsset.Build"/> 之后，每个渲染 pass 的关键输入槽
+        /// 均已连接。在 pass 自持资源模型（ADR-017）下，链头的 color/depth/
+        /// 渲染器列表槽有意保持未连接 —— pass 从自身参数分配它们；
+        /// 光照/探针数据通过 <see cref="SlotConnection"/> 的 pass 间链传递
+        /// （例如 <c>buildLight.lightDatasBuffer</c> → <c>forwardOpaque.LightDatas</c>），
+        /// 颜色目标链为 forwardOpaque → sky → transparency → wireOverlay /
+        /// finalBlit。
         /// </summary>
         [Test]
         public void Build_ConnectsKeyPassSlots()
@@ -130,9 +125,8 @@ namespace HN.HNRP.Tests
                 return pass!;
             }
 
-            // ── forwardOpaque: chain head — color/depth/renderer-list are
-            //    allocated locally (unconnected); lighting/probe data from slot
-            //    connections ──
+            // ── forwardOpaque：链头 —— color/depth/渲染器列表本地分配
+            //    （未连接）；光照/探针数据来自槽连接 ──
 
             var forwardOpaque = (DrawObjectPass)FindPass("forwardOpaque");
             Assert.That(forwardOpaque.ColorTargetSlot!.IsConnected, Is.False,
@@ -150,7 +144,7 @@ namespace HN.HNRP.Tests
             Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
 
-            // ── sky: color / depth targets connected (chained from forwardOpaque) ──
+            // ── sky：color/depth 目标已连接（自 forwardOpaque 链式传入）──
 
             var sky = (BuiltinSkyPass)FindPass("sky");
             Assert.That(sky.ColorTargetSlot!.IsConnected, Is.True,
@@ -158,9 +152,8 @@ namespace HN.HNRP.Tests
             Assert.That(sky.DepthTargetSlot!.IsConnected, Is.True,
                 "sky.DepthTarget should be connected through forwardOpaque.DepthTargetOutput.");
 
-            // ── transparency: color/depth chained from sky, renderer list
-            //    allocated locally (unconnected), lighting/probe data from slot
-            //    connections ──
+            // ── transparency：color/depth 自 sky 链式传入，渲染器列表
+            //    本地分配（未连接），光照/探针数据来自槽连接 ──
 
             var transparency = (DrawObjectPass)FindPass("transparency");
             Assert.That(transparency.ColorTargetSlot!.IsConnected, Is.True,
@@ -178,13 +171,13 @@ namespace HN.HNRP.Tests
             Assert.That(transparency.LightMaskSlot!.IsConnected, Is.True,
                 "transparency.LightMask should be connected through a slot connection from clusterLight.");
 
-            // ── wireOverlay: color target connected (chained from transparency) ──
+            // ── wireOverlay：color 目标已连接（自 transparency 链式传入）──
 
             var wireOverlay = (EditorWireOverlayPass)FindPass("wireOverlay");
             Assert.That(wireOverlay.ColorTargetSlot!.IsConnected, Is.True,
                 "wireOverlay.ColorTarget should be connected through transparency.ColorTargetOutput.");
 
-            // ── finalBlit: color target connected (chained from wireOverlay) ──
+            // ── finalBlit：color 目标已连接（自 wireOverlay 链式传入）──
 
             var finalBlit = (RenderOutputPass)FindPass("finalBlit");
             Assert.That(finalBlit.ColorTargetSlot!.IsConnected, Is.True,
@@ -193,16 +186,15 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Topological Order
+        #region Build —— 拓扑排序
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> returns passes in topological
-        /// order. The chained model adds explicit pass-to-pass edges along the
-        /// color / depth target chain, so <c>forwardOpaque</c> must run before
-        /// <c>sky</c>, which runs before <c>transparency</c>, which runs before
-        /// <c>wireOverlay</c>, which runs before <c>finalBlit</c>;
-        /// <c>buildLight</c> feeds LightDatas to <c>clusterLight</c> through a
-        /// slot connection, so it must run first too.
+        /// <see cref="RenderGraphAsset.Build"/> 按拓扑序返回 pass。
+        /// 链式模型沿 color/depth 目标链添加显式 pass 间边，因此
+        /// <c>forwardOpaque</c> 必须先于 <c>sky</c>，后者先于
+        /// <c>transparency</c>，后者先于 <c>wireOverlay</c>，
+        /// 后者先于 <c>finalBlit</c>；<c>buildLight</c> 通过槽连接向
+        /// <c>clusterLight</c> 提供 LightDatas，因此也必须最先执行。
         /// </summary>
         [Test]
         public void Build_OrdersPassesTopologically()
@@ -248,12 +240,12 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Settings
+        #region 设置
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Settings"/> reflect the configured values:
-        /// <see cref="RenderGraphSettings.SHEvalMode"/> is <c>PerPixel</c>,
-        /// <see cref="RenderGraphSettings.AllowHDR"/> is <c>true</c>.
+        /// <see cref="RenderGraphAsset.Settings"/> 反映配置值：
+        /// <see cref="RenderGraphSettings.SHEvalMode"/> 为 <c>PerPixel</c>，
+        /// <see cref="RenderGraphSettings.AllowHDR"/> 为 <c>true</c>。
         /// </summary>
         [Test]
         public void Settings_HasCorrectValues()

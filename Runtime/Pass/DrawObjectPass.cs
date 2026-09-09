@@ -4,101 +4,27 @@
 
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
+using UnityEngine.Rendering;
 using UnityEngine.Rendering.RendererUtils;
 using UnityEngine.Experimental.Rendering;
 
 namespace HN.HNRP
 {
     /// <summary>
-    /// Generic parameterized object-drawing pass.
-    /// Color / depth targets and the renderer list are consumed from connected
-    /// input slots when available; otherwise the pass allocates them itself from
-    /// its own <see cref="TextureResourceParams"/> / <see cref="RendererListParams"/>
-    /// parameters. Lighting / probe data (light datas, reflection probe atlas,
-    /// cluster culling masks) are optional read-only inputs.
+    /// 通用参数化对象绘制 pass。
     /// </summary>
-    /// <remarks>
-    /// <para><b>Inputs (all optional):</b></para>
-    /// <list type="bullet">
-    ///   <item><b>ColorTarget</b> — the color buffer written by draw calls.</item>
-    ///   <item><b>DepthTarget</b> — the depth buffer written by draw calls.</item>
-    ///   <item><b>LightDatas</b> — compute buffer with light data for shader access.</item>
-    ///   <item><b>ReflectionProbeAtlas</b> — reflection probe cubemap atlas texture.</item>
-    ///   <item><b>ProbeMask</b> — cluster culling reflection probe mask buffer.</item>
-    ///   <item><b>ProbeDatas</b> — cluster culling reflection probe data buffer.</item>
-    ///   <item><b>LightMask</b> — cluster culling light mask buffer.</item>
-    ///   <item><b>RendererList</b> — the renderer list to draw.</item>
-    /// </list>
-    /// <para>
-    /// When a required input slot is <b>not connected</b> or its handle is
-    /// <b>not valid</b>, the pass creates the resource internally (color / depth
-    /// buffers from <see cref="ColorTargetParams"/> / <see cref="DepthTargetParams"/>,
-    /// the renderer list from <see cref="RendererListParams"/>). This makes the
-    /// pass usable as a chain head without external resource nodes.
-    /// </para>
-    /// <para>
-    /// When <see cref="SetLightGlobals"/> is <c>true</c> the render function also
-    /// binds the probe / light / light-data shader globals (replacing the old
-    /// Forward Opaque pass behavior). When <c>false</c> only
-    /// <c>DrawRendererList</c> is emitted (e.g. preview graphs without cluster data).
-    /// </para>
-    /// <para>
-    /// <b>Outputs (pass-through for downstream chaining):</b>
-    /// </para>
-    /// <list type="bullet">
-    ///   <item><b>ColorTargetOutput</b> — pass-through of the resolved color target
-    ///   (input or self-allocated) so downstream passes can chain.</item>
-    ///   <item><b>DepthTargetOutput</b> — pass-through of the resolved depth target.</item>
-    /// </list>
-    /// </remarks>
     [Pass(PassNameConst)]
     public sealed class DrawObjectPass : Pass
     {
         /// <summary>
-        /// The constant pass name string used for registration and identification.
+        /// 用于注册与识别的常量 pass 名。
         /// </summary>
         public const string PassNameConst = "Draw Object";
 
-        // ── Configurable parameters ──
+        // ── 可配置参数 ──
 
         /// <summary>
-        /// Parameters for the color target allocated when the
-        /// <see cref="ColorTargetSlot"/> input is not connected / valid.
-        /// Default: full-resolution LDR.
-        /// </summary>
-        [SerializeField]
-        private TextureResourceParams colorTargetParams;
-
-        /// <summary>
-        /// Parameters for the depth target allocated when the
-        /// <see cref="DepthTargetSlot"/> input is not connected / valid.
-        /// Default: full-resolution 32-bit depth.
-        /// </summary>
-        [SerializeField]
-        private TextureResourceParams depthTargetParams;
-
-        /// <summary>
-        /// Parameters for the renderer list created when the
-        /// Default: opaque queue, layer mask <c>0x00000001</c>.
-        /// </summary>
-        [SerializeField]
-        private RendererListParams rendererListParams;
-
-        /// <summary>
-        /// Whether the render function should set the probe / light / light-datas
-        /// shader globals before drawing. Default <c>true</c>.
-        /// </summary>
-        [SerializeField]
-        private bool setLightGlobals = true;
-
-        /// <summary>
-        /// Whether the objects should receive shadow.
-        /// </summary>
-        [SerializeField]
-        private bool receiveShadow = true;
-
-        /// <summary>
-        /// Gets or sets the color target allocation parameters.
+        /// 获取或设置颜色目标分配参数。
         /// </summary>
         public TextureResourceParams ColorTargetParams
         {
@@ -107,7 +33,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Gets or sets the depth target allocation parameters.
+        /// 获取或设置深度目标分配参数。
         /// </summary>
         public TextureResourceParams DepthTargetParams
         {
@@ -116,7 +42,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Gets or sets the renderer list allocation parameters.
+        /// 获取或设置渲染器列表分配参数。
         /// </summary>
         public RendererListParams RendererListParams
         {
@@ -125,9 +51,8 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Gets or sets the rendering layer mask used when the renderer list is
-        /// allocated locally (via <see cref="RendererListParams"/>).
-        /// Default is <c>0x00000001</c> (layer 0).
+        /// 获取或设置本地分配渲染器列表（经 <see cref="RendererListParams"/>）
+        /// 时使用的渲染层掩码。默认为 <c>0x00000001</c>（第 0 层）。
         /// </summary>
         public uint RenderingLayerMask
         {
@@ -135,21 +60,8 @@ namespace HN.HNRP
             set => rendererListParams.RenderingLayerMask = value;
         }
 
-        // /// <summary>
-        // /// Gets or sets a value indicating whether the render function should set
-        // /// the probe / light / light-datas shader globals before drawing.
-        // /// Default is <c>true</c>. Set to <c>false</c> for graphs that have no
-        // /// cluster culling data (e.g. preview).
-        // /// </summary>
-        // public bool SetLightGlobals
-        // {
-        //     get => setLightGlobals;
-        //     set => setLightGlobals = value;
-        // }
-
         /// <summary>
-        /// Gets or sets a value indicating whether the objects should receive shadow.
-        /// Default is <c>true</c>.
+        /// 获取或设置物体是否接收阴影。默认为 <c>true</c>。
         /// </summary>
         public bool ReceiveShadow
         {
@@ -157,113 +69,135 @@ namespace HN.HNRP
             set => receiveShadow = value;
         }
 
-        // ── Slots ──
+        // ── Slot ──
 
         /// <summary>
-        /// Gets the input color target slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 颜色目标输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetSlot { get; private set; }
+        public TextureSlot ColorTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input depth target slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 深度目标输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? DepthTargetSlot { get; private set; }
+        public TextureSlot DepthTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the cascade shadow map slot.
+        /// 级联阴影图输入 slot。
         /// </summary>
-        public TextureSlot? CascadeShadowMapSlot { get; private set; }
+        public TextureSlot CascadeShadowMapSlot { get; private set; }
 
         /// <summary>
-        /// Gets the screen space shadow map slot.
+        /// 屏幕空间阴影图输入 slot。
         /// </summary>
-        public TextureSlot? ScreenSpaceShadowMapSlot { get; private set; }
+        public TextureSlot ScreenSpaceShadowMapSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input light data compute buffer slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 光照数据计算缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public ComputeBufferSlot? LightDatasSlot { get; private set; }
+        public ComputeBufferSlot LightDatasSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input reflection probe atlas texture slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 反射探针图集纹理输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ReflectionProbeAtlasSlot { get; private set; }
+        public TextureSlot ReflectionProbeAtlasSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input cluster culling reflection probe mask buffer slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 簇剔除反射探针掩码缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public ComputeBufferSlot? ProbeMaskSlot { get; private set; }
+        public ComputeBufferSlot ProbeMaskSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input cluster culling reflection probe data buffer slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 簇剔除反射探针数据缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public ComputeBufferSlot? ProbeDatasSlot { get; private set; }
+        public ComputeBufferSlot ProbeDatasSlot { get; private set; }
 
         /// <summary>
-        /// Gets the input cluster culling light mask buffer slot.
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 簇剔除光源掩码缓冲输入 slot。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public ComputeBufferSlot? LightMaskSlot { get; private set; }
+        public ComputeBufferSlot LightMaskSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output color target slot (pass-through of the resolved
-        /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 颜色目标输出 slot（解析后 <see cref="ColorTargetSlot"/> 句柄的透传，
+        /// 供下游链式连接）。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetOutputSlot { get; private set; }
+        public TextureSlot ColorTargetOutputSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output depth target slot (pass-through of the resolved
-        /// <see cref="DepthTargetSlot"/> handle for downstream chaining).
-        /// Available after <see cref="Pass.SetupSlots"/> is called.
+        /// 深度目标输出 slot（解析后 <see cref="DepthTargetSlot"/> 句柄的透传，
+        /// 供下游链式连接）。<see cref="Pass.SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? DepthTargetOutputSlot { get; private set; }
-
-        // ── Camera context ──
-
-        private CameraContext? cameraContext;
-
-        // ── Constructor ──
+        public TextureSlot DepthTargetOutputSlot { get; private set; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="DrawObjectPass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// <see cref="ColorTargetSlot"/> 输入未连接 / 无效时本地分配
+        /// 颜色目标所用的参数。默认：全分辨率 LDR。
         /// </summary>
+        [SerializeField]
+        private TextureResourceParams colorTargetParams;
+
+        /// <summary>
+        /// <see cref="DepthTargetSlot"/> 输入未连接 / 无效时本地分配
+        /// 深度目标所用的参数。默认：全分辨率 32 位深度。
+        /// </summary>
+        [SerializeField]
+        private TextureResourceParams depthTargetParams;
+
+        /// <summary>
+        /// 本地创建渲染器列表所用的参数。默认：不透明队列、层掩码
+        /// <c>0x00000001</c>。
+        /// </summary>
+        [SerializeField]
+        private RendererListParams rendererListParams;
+
+        /// <summary>
+        /// 物体是否接收阴影。
+        /// </summary>
+        [SerializeField]
+        private bool receiveShadow = true;
+
+        // ── 相机上下文 ──
+
+        private CameraContext cameraContext;
+
+        // ── 构造函数 ──
+
+        /// <summary>
+        /// 初始化 <see cref="DrawObjectPass"/> 的新实例。
+        /// pass 以文档化默认分配参数启动（全分辨率 LDR 颜色、32 位深度、不透明
+        /// 渲染器列表）；<see cref="PreRecord"/> 之后按当前图的设置推导每帧目标格式。
+        /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// 参数默认值与带名构造保持一致。
+        /// </remarks>
         public DrawObjectPass()
+            : base(string.Empty)
         {
+            colorTargetParams = TextureResourceParams.CreateDefault();
+            depthTargetParams = TextureResourceParams.CreateDefault();
+            depthTargetParams.DepthBits = DepthBits.Depth32;
+            rendererListParams = RendererListParams.CreateDefault();
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="DrawObjectPass"/> class.
+        /// 初始化 <see cref="DrawObjectPass"/> 的新实例。
+        /// pass 以文档化默认分配参数启动（全分辨率 LDR 颜色、32 位深度、不透明
+        /// 渲染器列表）；<see cref="PreRecord"/> 之后按当前图的设置推导每帧目标格式。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public DrawObjectPass(string passName)
             : base(passName)
         {
+            colorTargetParams = TextureResourceParams.CreateDefault();
+            depthTargetParams = TextureResourceParams.CreateDefault();
+            depthTargetParams.DepthBits = DepthBits.Depth32;
+            rendererListParams = RendererListParams.CreateDefault();
         }
 
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            if (source is DrawObjectPass s)
-            {
-                colorTargetParams = s.colorTargetParams;
-                depthTargetParams = s.depthTargetParams;
-                rendererListParams = s.rendererListParams;
-                // setLightGlobals = s.setLightGlobals;
-            }
-        }
-
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -293,45 +227,40 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context so renderer list / lighting globals can be
-        /// resolved during <see cref="Record"/>.
+        /// 保存相机上下文，使 <see cref="Record"/> 期间能解析渲染器列表 /
+        /// 光照全局参数，并按图的设置确定颜色格式。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
             cameraContext = context;
 
-            colorTargetParams = TextureResourceParams.CreateDefault();
-            var format = template.Settings.AllowHDR ? SystemInfo.GetGraphicsFormat(DefaultFormat.HDR) : SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
-            colorTargetParams.ColorFormat = format;
-
-            depthTargetParams = TextureResourceParams.CreateDefault();
-            depthTargetParams.DepthBits = UnityEngine.Rendering.DepthBits.Depth32;
-
-            rendererListParams = RendererListParams.CreateDefault();
+            // 仅按模板级设置派生颜色格式：颜色链头自建颜色目标时，其格式由
+            // template.Settings.AllowHDR 决定。不再重置其它可配置参数
+            // （深度参数、渲染器列表、阴影开关等）——默认值已在构造函数初始化，
+            // 逐帧重置会覆盖模板代码 / 编辑器缓存 / 运行时动态设置的参数。
+            colorTargetParams.ColorFormat = template.Settings.AllowHDR
+                ? SystemInfo.GetGraphicsFormat(DefaultFormat.HDR)
+                : SystemInfo.GetGraphicsFormat(DefaultFormat.LDR);
         }
 
         /// <inheritdoc />
         public override void Record(RenderGraph renderGraph)
         {
-            if (ColorTargetSlot == null || DepthTargetSlot == null)
+            if (ColorTargetSlot == null || DepthTargetSlot == null || cameraContext == null)
             {
-                IsEnabled &= false;
-            }
-
-            if (cameraContext == null)
-            {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera == null)
             {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
-            // ── Required inputs: color / depth targets + renderer list ──
-            // Consume a connected input when its handle is valid; otherwise
-            // allocate the resource locally from this pass's parameters.
+            // ── 必需输入：颜色 / 深度目标 + 渲染器列表 ──
+            // 输入已连接且句柄有效时消费连接输入；否则按本 pass 参数本地分配资源。
 
             bool useInputColor = ColorTargetSlot.IsConnected && ColorTargetSlot.HasHandle;
             TextureHandle colorTarget = useInputColor
@@ -345,20 +274,16 @@ namespace HN.HNRP
                 : renderGraph.CreateTexture(
                     depthTargetParams.CreateDesc("Depth Buffer", camera));
 
-            if (!colorTarget.IsValid() || !depthTarget.IsValid())
-            {
-                IsEnabled &= false;
-            }
-
             RendererListHandle rendererList = CreateRendererList(renderGraph);
 
-            if (!rendererList.IsValid())
+            if (!colorTarget.IsValid() || !depthTarget.IsValid() || !rendererList.IsValid())
             {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
-            // Pass-through the resolved color / depth handles to the output slots
-            // so downstream passes can chain from this pass's outputs.
+            // 把解析出的颜色 / 深度句柄透传到输出 slot，
+            // 使下游 pass 能从本 pass 输出继续链式连接。
             if (ColorTargetOutputSlot != null)
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
@@ -377,14 +302,14 @@ namespace HN.HNRP
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
-            // ── Optional inputs: gated independently on connectivity ──
+            // ── 可选输入：各自按连接状态独立开关 ──
 
             bool hasCascadeShadow = false;
             bool isScreenSpaceShadow = false;
-            if(CascadeShadowMapSlot.IsConnected && CascadeShadowMapSlot.HasHandle)
+            if (CascadeShadowMapSlot.IsConnected && CascadeShadowMapSlot.HasHandle)
             {
                 hasCascadeShadow = true;
-                if(ScreenSpaceShadowMapSlot.IsConnected && ScreenSpaceShadowMapSlot.HasHandle)
+                if (ScreenSpaceShadowMapSlot.IsConnected && ScreenSpaceShadowMapSlot.HasHandle)
                 {
                     isScreenSpaceShadow = true;
                 }
@@ -425,38 +350,23 @@ namespace HN.HNRP
                     LightMaskSlot.ReadHandle());
             }
 
-            // ── Renderer list: read from the resolved handle ──
+            // ── 渲染器列表：从解析后的句柄读取 ──
 
             passData.rendererList = builder.UseRendererList(rendererList);
 
-            // ── Render function ──
-            // The probe keyword requires all three probe slots connected at record
-            // time (mirrors the original Forward Opaque behavior). Per-frame flags
-            // are stored on the pooled pass data so the render function closure
-            // only captures `this` (zero allocation).
-
-            // bool setLightGlobals = this.setLightGlobals;
             bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
 
-            // passData.setLightGlobals = setLightGlobals;
             passData.enableProbeKeyword = enableProbeKeyword;
             passData.hasLightMask = hasLightMask;
             passData.hasLightDatas = hasLightDatas;
 
-            // Explicit camera matrices for this pass. SetupCameraProperties on the
-            // ScriptableRenderContext only stores the LAST camera's matrix as the
-            // active global state, so passes that render offscreen cameras (e.g.
-            // realtime probe faces) must set the matrices per pass — otherwise every
-            // draw would use the main camera's view.
-            // All passes in HNRP render through RenderGraph which always renders to
-            // render textures internally, so renderIntoTexture is always true.
             passData.viewMatrix = camera.worldToCameraMatrix;
             passData.projMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
 
             builder.SetRenderFunc(
                 (DrawObjectPassData data, RenderGraphContext ctx) =>
                 {
-                    if(!IsEnabled)
+                    if (!IsEnabled)
                     {
                         return;
                     }
@@ -465,10 +375,10 @@ namespace HN.HNRP
 
                     if (!(camera.cameraType == CameraType.Preview && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME))
                     {
-                        if(hasCascadeShadow)
+                        if (hasCascadeShadow)
                         {
                             ctx.cmd.EnableShaderKeyword(GlobalKeywords.cascadeShadowMap);
-                            if(isScreenSpaceShadow)
+                            if (isScreenSpaceShadow)
                                 ctx.cmd.EnableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
                             else
                                 ctx.cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
@@ -495,7 +405,7 @@ namespace HN.HNRP
                             ctx.cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
                         }
 
-                        // Cluster culling light shader keyword + globals
+                        // 簇剔除光照 shader keyword + 全局参数
                         if (data.hasLightMask)
                         {
                             ctx.cmd.EnableShaderKeyword(
@@ -505,8 +415,8 @@ namespace HN.HNRP
                                 data.lightMaskBuffer);
                         }
 
-                        // Light data buffer (set only when the slot is connected —
-                        // avoids binding an invalid handle when there is no light pass)
+                        // 光照数据缓冲（仅 slot 连接时设置 ——
+                        // 避免在无光照 pass 时绑定无效句柄）
                         if (data.hasLightDatas)
                         {
                             ctx.cmd.SetGlobalBuffer(
@@ -514,7 +424,7 @@ namespace HN.HNRP
                                 data.lightDatasBuffer);
                         }
                     }
-                    
+
                     ctx.cmd.DrawRendererList(data.rendererList);
                 });
         }
@@ -522,17 +432,17 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held by this pass.
+            // 本 pass 不持有可释放资源。
         }
 
-        // ── Helpers ──
+        // ── 辅助 ──
 
         /// <summary>
-        /// Creates the renderer list locally from <see cref="RendererListParams"/>.
-        /// Returns a default (invalid) handle when culling results are unavailable.
+        /// 从 <see cref="RendererListParams"/> 本地创建渲染器列表。
+        /// 裁剪结果不可用时返回默认（无效）句柄。
         /// </summary>
-        /// <param name="renderGraph">The render graph to create the list in.</param>
-        /// <returns>The created renderer list handle, or a default handle.</returns>
+        /// <param name="renderGraph">要在其中创建列表的渲染图。</param>
+        /// <returns>创建的渲染器列表句柄，或默认句柄。</returns>
         private RendererListHandle CreateRendererList(RenderGraph renderGraph)
         {
             if (!cameraContext.HasCullingResults)
@@ -550,77 +460,72 @@ namespace HN.HNRP
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for <see cref="DrawObjectPass"/>.
+        /// <see cref="DrawObjectPass"/> 的渲染图 pass 数据容器。
         /// </summary>
         private sealed class DrawObjectPassData
         {
             /// <summary>
-            /// The color target texture handle.
+            /// 颜色目标纹理句柄。
             /// </summary>
             public TextureHandle colorTarget;
 
             /// <summary>
-            /// The depth target texture handle.
+            /// 深度目标纹理句柄。
             /// </summary>
             public TextureHandle depthTarget;
 
             /// <summary>
-            /// The light data compute buffer handle.
+            /// 光照数据计算缓冲句柄。
             /// </summary>
             public ComputeBufferHandle lightDatasBuffer;
 
             /// <summary>
-            /// The reflection probe atlas texture handle.
+            /// 反射探针图集纹理句柄。
             /// </summary>
             public TextureHandle reflectionProbeAtlas;
 
             /// <summary>
-            /// The cluster culling reflection probe mask buffer handle.
+            /// 簇剔除反射探针掩码缓冲句柄。
             /// </summary>
             public ComputeBufferHandle probeMaskBuffer;
 
             /// <summary>
-            /// The cluster culling reflection probe data buffer handle.
+            /// 簇剔除反射探针数据缓冲句柄。
             /// </summary>
             public ComputeBufferHandle probeDatasBuffer;
 
             /// <summary>
-            /// The cluster culling light mask buffer handle.
+            /// 簇剔除光照掩码缓冲句柄。
             /// </summary>
             public ComputeBufferHandle lightMaskBuffer;
 
             /// <summary>
-            /// The renderer list handle.
+            /// 渲染器列表句柄。
             /// </summary>
             public RendererListHandle rendererList;
 
-            // /// <summary>
-            // /// Whether the render function should set lighting globals.
-            // /// </summary>
-            // public bool setLightGlobals;
-
             /// <summary>
-            /// Whether the probe keyword + globals should be enabled.
+            /// 是否启用探针 keyword + 全局参数。
             /// </summary>
             public bool enableProbeKeyword;
 
             /// <summary>
-            /// Whether the cluster culling light mask buffer is bound.
+            /// 是否绑定了簇剔除光照掩码缓冲。
             /// </summary>
             public bool hasLightMask;
 
             /// <summary>
-            /// Whether the light data buffer is bound.
+            /// 是否绑定了光照数据缓冲。
             /// </summary>
             public bool hasLightDatas;
 
             /// <summary>
-            /// The view matrix for this pass's camera.
+            /// 本 pass 相机的视图矩阵。
             /// </summary>
             public Matrix4x4 viewMatrix;
 
             /// <summary>
-            /// The GPU projection matrix for this pass's camera.
+            /// 本 pass 相机的 GPU 投影矩阵。
             /// </summary>
             public Matrix4x4 projMatrix;
         }

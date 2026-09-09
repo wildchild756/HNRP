@@ -12,78 +12,73 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Renders reflection reflection probes before all main cameras.
-    /// Collects visible realtime probes from camera culling results, decides which
-    /// cubemap faces to render this frame from each probe's
-    /// <see cref="ReflectionProbe.timeSlicingMode"/> and
-    /// <see cref="ReflectionProbe.refreshMode"/>, and renders each face through the
-    /// normal per-camera pipeline using <see cref="HNRenderPipelineAsset.DefaultReflectionRenderGraph"/>.
+    /// 在所有主相机之前渲染实时反射探针。从相机剔除结果收集可见的实时探针，
+    /// 依据每个探针的 <see cref="ReflectionProbe.timeSlicingMode"/> 与
+    /// <see cref="ReflectionProbe.refreshMode"/> 决定本帧渲染哪些 cubemap 面，
+    /// 并通过 <see cref="HNRenderPipelineAsset.DefaultReflectionRenderGraph"/>
+    /// 走常规逐相机管线渲染每个面。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Faces are rendered with pooled cameras owned by <see cref="ReflectionProbeCameraPool"/>;
-    /// the pool also records which probe faces were already rendered this frame so
-    /// probes visible to multiple cameras are rendered only once.
+    /// 面渲染使用 <see cref="ReflectionProbeCameraPool"/> 持有的池化相机；
+    /// 池同时记录本帧已渲染的探针面，使对多个相机可见的探针只渲染一次。
     /// </para>
     /// <para>
-    /// Reflection probes themselves are not rendered inside the probe pass — the
-    /// Reflection render graph template contains no cluster-culling probe pass.
+    /// 反射探针自身不在探针 pass 内渲染 —— Reflection 渲染图模板
+    /// 不包含 cluster-culling 探针 pass。
     /// </para>
     /// </remarks>
     public sealed class ReflectionProbeRenderer : IDisposable
     {
         /// <summary>
-        /// The camera pool used for face rendering and per-frame dedup.
+        /// 用于面渲染与逐帧去重的相机池。
         /// </summary>
-        private readonly ReflectionProbeCameraPool m_Pool;
+        private readonly ReflectionProbeCameraPool pool;
 
         /// <summary>
-        /// Realtime probes visible this frame, keyed by probe instance id.
-        /// Cleared by <see cref="BeginFrame"/>.
+        /// 本帧可见的实时探针，按探针实例 id 为键。由 <see cref="BeginFrame"/> 清除。
         /// </summary>
-        private readonly Dictionary<int, ReflectionProbe> m_Requests = new();
+        private readonly Dictionary<int, ReflectionProbe> requests = new();
 
         /// <summary>
-        /// Per-probe face progress for
-        /// <see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/>.
+        /// 每个探针在
+        /// <see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/> 下的面进度。
         /// </summary>
-        private readonly Dictionary<int, int> m_FaceProgress = new();
+        private readonly Dictionary<int, int> faceProgress = new();
 
         /// <summary>
-        /// Probes already initialized for <see cref="ReflectionProbeRefreshMode.OnAwake"/>.
+        /// 已针对 <see cref="ReflectionProbeRefreshMode.OnAwake"/> 初始化过的探针。
         /// </summary>
-        private readonly HashSet<int> m_InitializedProbes = new();
+        private readonly HashSet<int> initializedProbes = new();
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ReflectionProbeRenderer"/> class.
+        /// 初始化 <see cref="ReflectionProbeRenderer"/> 的新实例。
         /// </summary>
-        /// <param name="pool">The camera pool used for face rendering.</param>
+        /// <param name="pool">用于面渲染的相机池。</param>
         public ReflectionProbeRenderer(ReflectionProbeCameraPool pool)
         {
-            m_Pool = pool;
+            this.pool = pool;
         }
 
         /// <summary>
-        /// Gets the number of collected realtime probes pending render this frame.
+        /// 获取本帧待渲染的已收集实时探针数量。
         /// </summary>
-        public int PendingProbeCount => m_Requests.Count;
+        public int PendingProbeCount => requests.Count;
 
         /// <summary>
-        /// Starts a new frame: clears the previous frame's requests and the pool's
-        /// rendered-face set.
+        /// 开始新帧：清除上一帧的请求与相机池的已渲染面集合。
         /// </summary>
         public void BeginFrame()
         {
-            m_Pool.BeginFrame();
-            m_Requests.Clear();
+            pool.BeginFrame();
+            requests.Clear();
         }
 
         /// <summary>
-        /// Collects reflection probes from a camera's visible reflection probe culling
-        /// results. Duplicate probes (visible to multiple cameras) are collected once.
+        /// 从某相机的可见反射探针剔除结果中收集反射探针。
+        /// 重复探针（对多个相机可见）只收集一次。
         /// </summary>
-        /// <param name="visibleProbes">Visible reflection probes from a camera's
-        /// culling results.</param>
+        /// <param name="visibleProbes">来自某相机剔除结果的可见反射探针。</param>
         public void CollectReflectionProbes(NativeArray<VisibleReflectionProbe> visibleProbes)
         {
             for (int i = 0; i < visibleProbes.Length; i++)
@@ -94,13 +89,12 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Collects a single realtime probe by instance id. No-op for invalid ids,
-        /// unknown objects, or non-realtime probes.
+        /// 按实例 id 收集单个实时探针。无效 id、未知对象或非实时探针为无操作。
         /// </summary>
-        /// <param name="probeInstanceId">The reflection probe instance id.</param>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
         public void CollectRealtimeProbe(int probeInstanceId)
         {
-            if (probeInstanceId == 0 || m_Requests.ContainsKey(probeInstanceId))
+            if (probeInstanceId == 0 || requests.ContainsKey(probeInstanceId))
             {
                 return;
             }
@@ -111,51 +105,47 @@ namespace HN.HNRP
                 return;
             }
 
-            m_Requests.Add(probeInstanceId, probe);
+            requests.Add(probeInstanceId, probe);
         }
 
         /// <summary>
-        /// Renders all collected reflection probes. Called before main camera rendering
-        /// so probe faces execute first. Each cubemap face is recorded and executed in
-        /// its own <c>RecordAndExecute</c> block: the camera matrix set by
-        /// <c>SetupCameraProperties</c> is only applied when the block executes, so
-        /// every face must execute immediately after its camera is configured —
-        /// otherwise a later camera's matrix would leak into this face's passes.
+        /// 渲染所有已收集的反射探针。在主相机渲染前调用，使探针面先执行。
+        /// 每个 cubemap 面在独立的 <c>RecordAndExecute</c> 块中录制并执行：
+        /// <c>SetupCameraProperties</c> 设置的相机矩阵仅在块执行时生效，
+        /// 因此每个面必须在配置完其相机后立即执行 —— 否则后续相机的矩阵
+        /// 会泄漏到本面的 pass 中。
         /// </summary>
-        /// <param name="context">The scriptable render context for the frame.</param>
-        /// <param name="renderGraph">The render graph to record probe passes into.</param>
-        /// <param name="parameters">The render graph parameters for this frame.</param>
-        /// <param name="asset">The pipeline asset providing the reflection render graph
-        /// and runtime resources.</param>
-        /// <param name="deferredDispose">List receiving per-face camera contexts whose
-        /// disposal is deferred until after render graph execution.</param>
+        /// <param name="context">本帧的脚本化渲染上下文。</param>
+        /// <param name="renderGraph">用于录制探针 pass 的渲染图。</param>
+        /// <param name="parameters">本帧的渲染图参数。</param>
+        /// <param name="asset">提供反射渲染图与运行时资源的管线资源。</param>
         public void RenderProbes(
             ScriptableRenderContext context,
             RenderGraph renderGraph,
             in RenderGraphParameters parameters,
             HNRenderPipelineAsset asset)
         {
-            if (m_Requests.Count == 0 || asset == null || asset.reflectionRenderGraphViewBlock == null)
+            if (requests.Count == 0 || asset == null || asset.reflectionRenderGraphViewBlock == null)
             {
                 return;
             }
             
-            foreach (KeyValuePair<int, ReflectionProbe> request in m_Requests)
+            foreach (KeyValuePair<int, ReflectionProbe> request in requests)
             {
                 RenderProbe(context, renderGraph, parameters, asset, request.Value);
             }
         }
 
         /// <summary>
-        /// Returns whether the given probe should be rendered this frame, honoring
-        /// its <see cref="ReflectionProbe.refreshMode"/>.
+        /// 返回给定探针本帧是否应渲染，遵循其
+        /// <see cref="ReflectionProbe.refreshMode"/>。
         /// </summary>
-        /// <param name="probe">The reflection probe to test.</param>
+        /// <param name="probe">要测试的反射探针。</param>
         /// <returns>
-        /// <c>true</c> for <see cref="ReflectionProbeRefreshMode.EveryFrame"/>,
-        /// <c>true</c> only until initialized for
-        /// <see cref="ReflectionProbeRefreshMode.OnAwake"/>, and <c>false</c> for
-        /// <see cref="ReflectionProbeRefreshMode.ViaScripting"/>.
+        /// <see cref="ReflectionProbeRefreshMode.EveryFrame"/> 时返回 <c>true</c>；
+        /// <see cref="ReflectionProbeRefreshMode.OnAwake"/> 仅在初始化完成前返回
+        /// <c>true</c>；<see cref="ReflectionProbeRefreshMode.ViaScripting"/> 返回
+        /// <c>false</c>。
         /// </returns>
         public bool ShouldRenderThisFrame(ReflectionProbe probe)
         {
@@ -167,7 +157,7 @@ namespace HN.HNRP
             switch (probe.refreshMode)
             {
                 case ReflectionProbeRefreshMode.OnAwake:
-                    return !m_InitializedProbes.Contains(probe.GetInstanceID());
+                    return !initializedProbes.Contains(probe.GetInstanceID());
 
                 case ReflectionProbeRefreshMode.ViaScripting:
                     return false;
@@ -179,10 +169,10 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Marks a probe as initialized so <see cref="ReflectionProbeRefreshMode.OnAwake"/>
-        /// probes stop rendering.
+        /// 将探针标记为已初始化，使
+        /// <see cref="ReflectionProbeRefreshMode.OnAwake"/> 探针停止渲染。
         /// </summary>
-        /// <param name="probe">The probe that finished its initial render.</param>
+        /// <param name="probe">已完成初始渲染的探针。</param>
         public void MarkInitialized(ReflectionProbe probe)
         {
             if (probe == null)
@@ -190,39 +180,39 @@ namespace HN.HNRP
                 return;
             }
 
-            m_InitializedProbes.Add(probe.GetInstanceID());
+            initializedProbes.Add(probe.GetInstanceID());
         }
 
         /// <summary>
-        /// Returns whether the given probe was already initialized.
+        /// 返回给定探针是否已初始化。
         /// </summary>
-        /// <param name="probe">The reflection probe to test.</param>
-        /// <returns><c>true</c> if the probe finished its initial render.</returns>
+        /// <param name="probe">要测试的反射探针。</param>
+        /// <returns>探针完成初始渲染后返回 <c>true</c>。</returns>
         public bool IsInitialized(ReflectionProbe probe)
         {
-            return probe != null && m_InitializedProbes.Contains(probe.GetInstanceID());
+            return probe != null && initializedProbes.Contains(probe.GetInstanceID());
         }
 
         /// <summary>
-        /// Ends the frame for the renderer and its pool.
+        /// 结束渲染器与其相机池的本帧处理。
         /// </summary>
         public void EndFrame()
         {
-            m_Pool.EndFrame();
+            pool.EndFrame();
         }
 
         /// <summary>
-        /// Disposes the renderer and its camera pool.
+        /// 释放渲染器及其相机池。
         /// </summary>
         public void Dispose()
         {
-            m_Pool.Dispose();
-            m_Requests.Clear();
-            m_FaceProgress.Clear();
-            m_InitializedProbes.Clear();
+            pool.Dispose();
+            requests.Clear();
+            faceProgress.Clear();
+            initializedProbes.Clear();
         }
 
-        // ── Rendering ──
+        // ── 渲染 ──
 
         private void RenderProbe(
             ScriptableRenderContext context,
@@ -241,13 +231,13 @@ namespace HN.HNRP
 
             foreach (int face in faces)
             {
-                if (m_Pool.IsFaceRendered(probeId, face))
+                if (pool.IsFaceRendered(probeId, face))
                 {
                     continue;
                 }
 
                 RenderFace(context, renderGraph, parameters, asset, probe, face);
-                m_Pool.MarkFaceRendered(probeId, face);
+                pool.MarkFaceRendered(probeId, face);
             }
 
             if (probe.refreshMode == ReflectionProbeRefreshMode.OnAwake)
@@ -258,7 +248,7 @@ namespace HN.HNRP
                      probe.timeSlicingMode == ReflectionProbeTimeSlicingMode.IndividualFaces)
             {
                 int progress = GetFaceProgress(probeId);
-                m_FaceProgress[probeId] = ReflectionProbeRenderUtils.AdvanceIndividualFace(progress);
+                faceProgress[probeId] = ReflectionProbeRenderUtils.AdvanceIndividualFace(progress);
             }
         }
 
@@ -266,7 +256,7 @@ namespace HN.HNRP
         {
             if (probe.refreshMode == ReflectionProbeRefreshMode.OnAwake)
             {
-                // OnAwake renders all faces once.
+                // OnAwake 一次性渲染所有面。
                 return ReflectionProbeRenderUtils.AllFaces;
             }
 
@@ -279,7 +269,7 @@ namespace HN.HNRP
 
         private int GetFaceProgress(int probeId)
         {
-            return m_FaceProgress.TryGetValue(probeId, out int progress) ? progress : 0;
+            return faceProgress.TryGetValue(probeId, out int progress) ? progress : 0;
         }
 
         private void RenderFace(
@@ -290,12 +280,12 @@ namespace HN.HNRP
             ReflectionProbe probe,
             int face)
         {
-            Camera camera = m_Pool.GetCamera();
+            Camera camera = pool.GetCamera();
             RenderTexture target = GetProbeTarget(probe);
             ConfigureCamera(camera, probe, face, target);
 
             int probeId = probe.GetInstanceID();
-            var customTargetHandle = m_Pool.GetOrCreateFaceHandle(probeId, face, target);
+            var customTargetHandle = pool.GetOrCreateFaceHandle(probeId, face, target);
             var cameraContext = new CameraContext(camera, context)
             {
                 RuntimeResources = asset.runtimeResources,
@@ -312,21 +302,20 @@ namespace HN.HNRP
                 cameraContext.HasCullingResults = true;
                 cameraContext.VisibleLights = new NativeArray<VisibleLight>(
                     cameraContext.CullingResults.visibleLights, Allocator.TempJob);
-                // VisibleReflectionProbes intentionally not populated: the Reflection
-                // render graph template has no reflection probe consumer.
+                // VisibleReflectionProbes 有意不填充：Reflection 渲染图模板
+                // 没有反射探针消费方。
             }
 
-            // The face records and executes in its own RecordAndExecute block so the
-            // camera matrix configured below is the active one when the passes run.
+            // 每个面在独立的 RecordAndExecute 块中录制并执行，使下面配置的
+            // 相机矩阵在 pass 运行时是当前生效的矩阵。
             using (renderGraph.RecordAndExecute(parameters))
             {
                 SetupCameraProperties(context, camera);
 
-                // Push this face camera's global shader constants into the
-                // ShaderVariablesGlobal cbuffer. The render graph commands are
-                // submitted after this camera block, so the per-face matrices are
-                // the active ones for the face's draws (SetupCameraProperties alone
-                // would leave the LAST camera's matrix as global state).
+                // 将该面相机的全局着色器常量推入 ShaderVariablesGlobal cbuffer。
+                // 渲染图命令在本相机块之后提交，因此各面的矩阵在面的绘制期间
+                // 生效（仅调用 SetupCameraProperties 会让上一个相机的矩阵
+                // 残留为全局状态）。
                 var globalConstantBuffer = new GlobalConstantBuffer();
                 GlobalConstantBufferUtility.FillFromCamera(
                     camera,

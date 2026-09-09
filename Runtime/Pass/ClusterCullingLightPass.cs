@@ -10,88 +10,60 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Performs cluster-based light culling using a compute shader.
-    /// Reads the light data buffer produced by <see cref="BuildLightDataPass"/>,
-    /// dispatches the cluster culling compute shader, and outputs a light mask
-    /// buffer consumed by forward rendering passes.
+    /// 簇剔除光源 pass：用 compute shader 把可见光按屏幕簇裁剪，
+    /// 输出每个簇的光照掩码缓冲，供前向渲染 pass 使用。
     /// </summary>
-    /// <remarks>
-    /// <para><b>New Pass system</b> (ADR-002, ADR-011):
-    /// Inherits from <see cref="Pass"/> instead of the legacy <see cref="PassBase"/>.
-    /// The compute shader is accessed via <see cref="CameraContext.RuntimeResources"/>
-    /// instead of being loaded from the AssetDatabase at creation time.
-    /// Uses name-based <see cref="ComputeBufferSlot"/> for input/output connections.
-    /// </para>
-    /// <para>
-    /// <b>Inputs:</b>
-    /// <list type="bullet">
-    ///   <item><b>lightDatasBuffer</b> — the light data compute buffer from
-    ///   <see cref="BuildLightDataPass"/>.</item>
-    /// </list>
-    /// </para>
-    /// <para>
-    /// <b>Outputs:</b>
-    /// <list type="bullet">
-    ///   <item><b>clusterCullingLightMaskBuffer</b> — the cluster culling light
-    ///   mask buffer for forward rendering passes.</item>
-    /// </list>
-    /// </para>
-    /// </remarks>
     [Pass(PassNameConst)]
     public sealed class ClusterCullingLightPass : Pass
     {
         /// <summary>
-        /// The constant pass name string used for registration and identification.
+        /// 用于注册与识别的常量 pass 名。
         /// </summary>
         public const string PassNameConst = "Cluster Culling Light";
 
-        // ── Slots ──
+        // ── Slot ──
 
         /// <summary>
-        /// Gets the input light data buffer slot.
-        /// Connected to the output of <see cref="BuildLightDataPass"/>.
+        /// 光照数据缓冲输入 slot。连接到 <see cref="BuildLightDataPass"/> 的输出。
         /// </summary>
-        public ComputeBufferSlot? LightDatasBufferSlot { get; private set; }
+        public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output cluster culling light mask buffer slot.
-        /// Connected to the light mask input of forward rendering passes.
+        /// 簇剔除光照掩码缓冲输出 slot。
+        /// 连接到前向渲染 pass 的光照掩码输入。
         /// </summary>
-        public ComputeBufferSlot? ClusterCullingLightMaskBufferSlot { get; private set; }
+        public ComputeBufferSlot ClusterCullingLightMaskBufferSlot { get; private set; }
 
-        // ── Camera context ──
+        // ── 相机上下文 ──
 
-        private CameraContext? m_CameraContext;
+        private CameraContext cameraContext;
 
-        // ── Constructor ──
+        // ── 构造函数 ──
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ClusterCullingLightPass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// 初始化 <see cref="ClusterCullingLightPass"/> 的新实例。
         /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// </remarks>
         public ClusterCullingLightPass()
+            : base(string.Empty)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="ClusterCullingLightPass"/> class.
+        /// 初始化 <see cref="ClusterCullingLightPass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public ClusterCullingLightPass(string passName)
             : base(passName)
         {
         }
 
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            // No serialized parameters on this pass.
-        }
-
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -106,23 +78,20 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context so the compute shader and camera data can be
-        /// accessed during <see cref="Record"/>. The compute shader is resolved from
-        /// <see cref="CameraContext.RuntimeResources"/>.
+        /// 保存相机上下文，使 <see cref="Record"/> 期间能访问 compute shader 与相机
+        /// 数据。compute shader 从 <see cref="CameraContext.RuntimeResources"/> 解析。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
-            m_CameraContext = context;
+            cameraContext = context;
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Reads the light data buffer from the connected input slot, creates the
-        /// output cluster culling light mask buffer, configures and dispatches the
-        /// cluster culling compute shader, and publishes the output handle.
+        /// 从已连接的输入 slot 读取光照数据缓冲，创建簇剔除光照掩码输出缓冲，
+        /// 配置并派发簇剔除 compute shader，随后发布输出句柄。
         ///
-        /// The compute shader and camera matrices come from the camera context
-        /// set during <see cref="PreRecord"/>.
+        /// compute shader 与相机矩阵来自 <see cref="PreRecord"/> 设置的相机上下文。
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
@@ -132,22 +101,22 @@ namespace HN.HNRP
                 IsEnabled &= false;
             }
 
-            if (m_CameraContext == null)
+            if (cameraContext == null)
             {
                 IsEnabled &= false;
             }
 
             ComputeShader clusterCullingLightCS =
-                m_CameraContext.RuntimeResources?.clusterCullingLightCS;
+                cameraContext.RuntimeResources?.clusterCullingLightCS;
             if (clusterCullingLightCS == null)
             {
                 Debug.LogError(
-                    "Cluster Culling Light Compute Shader is null. " +
-                    "Ensure it is assigned in HNRenderPipelineRuntimeResources.");
+                    "Cluster Culling Light Compute Shader 为 null。 " +
+                    "请确保已在 HNRenderPipelineRuntimeResources 中赋值。");
                 IsEnabled &= false;
             }
 
-            Camera camera = m_CameraContext.Camera;
+            Camera camera = cameraContext.Camera;
             if (camera == null)
             {
                 IsEnabled &= false;
@@ -158,7 +127,7 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
-                // ── Input: light data buffer ──
+                // ── 输入：光照数据缓冲 ──
 
                 if (LightDatasBufferSlot?.IsConnected == true)
                 {
@@ -166,7 +135,7 @@ namespace HN.HNRP
                         LightDatasBufferSlot.ReadHandle());
                 }
 
-                // ── Output: cluster culling light mask buffer ──
+                // ── 输出：簇剔除光照掩码缓冲 ──
 
                 ComputeBufferHandle lightMaskBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
@@ -178,19 +147,19 @@ namespace HN.HNRP
 
                 ClusterCullingLightMaskBufferSlot.SetHandle(lightMaskBuffer);
 
-                // ── Prepare per-frame data ──
+                // ── 准备每帧数据 ──
 
                 int maxLightOnScreen =
                     HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
                     + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
                 int catchedLightCount = Mathf.Min(
-                    m_CameraContext.VisibleLights.Length, maxLightOnScreen);
+                    cameraContext.VisibleLights.Length, maxLightOnScreen);
 
                 int directionalLightCount = 0;
                 int localLightCount = 0;
                 for (int i = 0; i < catchedLightCount; i++)
                 {
-                    var light = m_CameraContext.VisibleLights[i];
+                    var light = cameraContext.VisibleLights[i];
                     if (light.lightType == LightType.Directional)
                     {
                         directionalLightCount++;
@@ -219,12 +188,12 @@ namespace HN.HNRP
                     camera.nearClipPlane,
                     camera.farClipPlane);
 
-                // Items per cluster = total visible lights on screen
+                // 每簇条目数 = 屏幕上可见光源总数
                 int itemsPerCluster = maxLightOnScreen;
                 int wordsPerCluster =
-                    (itemsPerCluster + 31) / 32 + 1 /* 1 for header */;
+                    (itemsPerCluster + 31) / 32 + 1 /* 1 表示 header */;
 
-                // ── Configure pass data ──
+                // ── 配置 pass data ──
 
                 passData.clusterCullingLightCS = clusterCullingLightCS;
                 passData.clusterCullingLightKernel =
@@ -243,15 +212,15 @@ namespace HN.HNRP
                     localLightCount;
                 passData.clusterCullingLightParams.unused = 0;
 
-                // Camera matrices
+                // 相机矩阵
                 Matrix4x4 clipToView = camera.projectionMatrix;
                 Matrix4x4 viewToClip = camera.projectionMatrix.inverse;
                 Matrix4x4 clipToWorld =
                     (camera.worldToCameraMatrix * camera.projectionMatrix)
                     .inverse;
 
-                // ── Store per-frame values on the pooled pass data so the
-                // render function closure only captures `this` (zero allocation) ──
+                // ── 把每帧值存到池化 pass data 上，
+                // 使渲染函数闭包只捕获 `this`（零分配）──
 
                 passData.clusterSize = clusterSize;
                 passData.clusterZScaleOffset = clusterZScaleOffset;
@@ -262,12 +231,12 @@ namespace HN.HNRP
                 passData.viewToClip = viewToClip;
                 passData.clipToWorld = clipToWorld;
 
-                // ── Render function ──
+                // ── 渲染函数 ──
 
                 builder.SetRenderFunc(
                     (ClusterCullingLightPassData data, RenderGraphContext ctx) =>
                     {
-                        if(!IsEnabled)
+                        if (!IsEnabled)
                         {
                             return;
                         }
@@ -335,17 +304,16 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held by this pass.
+            // 本 pass 不持有可释放资源。
         }
 
-        // ── Helpers ──
+        // ── 辅助 ──
 
         /// <summary>
-        /// Computes the cluster grid dimensions for the current frame based on
-        /// screen resolution.
+        /// 基于屏幕分辨率计算当前帧的簇网格尺寸。
         /// </summary>
-        /// <param name="screenResolution">The screen resolution in pixels.</param>
-        /// <returns>The cluster size in X, Y, and Z dimensions.</returns>
+        /// <param name="screenResolution">以像素为单位的屏幕分辨率。</param>
+        /// <returns>簇在 X、Y、Z 三个方向上的尺寸。</returns>
         private static int3 GetClusterSize(int2 screenResolution)
         {
             int2 clusterSizeXY = new int2(1, 1);
@@ -364,16 +332,15 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Computes the Z-axis scale and offset for the cluster grid,
-        /// with different formulas for orthographic and perspective cameras.
+        /// 计算簇网格的 Z 轴缩放与偏移，
+        /// 正交相机与透视相机使用不同公式。
         /// </summary>
-        /// <param name="clusterSize">The cluster grid dimensions.</param>
-        /// <param name="isOrthographic">
-        /// Whether the camera is orthographic.</param>
-        /// <param name="nearClipPlane">The camera's near clip plane.</param>
-        /// <param name="farClipPlane">The camera's far clip plane.</param>
+        /// <param name="clusterSize">簇网格尺寸。</param>
+        /// <param name="isOrthographic">相机是否为正交投影。</param>
+        /// <param name="nearClipPlane">相机近裁剪面。</param>
+        /// <param name="farClipPlane">相机远裁剪面。</param>
         /// <returns>
-        /// A <see cref="float2"/> containing the Z scale (x) and offset (y).
+        /// 包含 Z 轴缩放（x）与偏移（y）的 <see cref="float2"/>。
         /// </returns>
         private static float2 GetClusterZScaleOffset(
             int3 clusterSize,
@@ -402,79 +369,77 @@ namespace HN.HNRP
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for
-        /// <see cref="ClusterCullingLightPass"/>.
+        /// <see cref="ClusterCullingLightPass"/> 的渲染图 pass 数据容器。
         /// </summary>
         private sealed class ClusterCullingLightPassData
         {
             /// <summary>
-            /// The light data compute buffer handle (input from
-            /// <see cref="BuildLightDataPass"/>).
+            /// 光照数据计算缓冲句柄（来自 <see cref="BuildLightDataPass"/> 的输入）。
             /// </summary>
             public ComputeBufferHandle lightDatasBuffer;
 
             /// <summary>
-            /// The cluster culling light mask buffer handle (output).
+            /// 簇剔除光照掩码缓冲句柄（输出）。
             /// </summary>
             public ComputeBufferHandle clusterCullingLightMaskBuffer;
 
             /// <summary>
-            /// The cluster culling compute shader.
+            /// 簇剔除 compute shader。
             /// </summary>
             public ComputeShader clusterCullingLightCS;
 
             /// <summary>
-            /// The kernel index for the cluster culling dispatch.
+            /// 簇剔除派发使用的 kernel 索引。
             /// </summary>
             public int clusterCullingLightKernel;
 
             /// <summary>
-            /// Global constant buffer parameters for cluster culling light.
+            /// 簇剔除光照的全局常量缓冲参数。
             /// </summary>
             public ClusterCullingLightParams clusterCullingLightParams;
 
             /// <summary>
-            /// The cluster grid dimensions for this frame.
+            /// 本帧簇网格尺寸。
             /// </summary>
             public int3 clusterSize;
 
             /// <summary>
-            /// The Z-axis scale (x) and offset (y) for cluster depth slices.
+            /// 簇深度切片的 Z 轴缩放（x）与偏移（y）。
             /// </summary>
             public float2 clusterZScaleOffset;
 
             /// <summary>
-            /// Number of uint words per cluster mask.
+            /// 每个簇掩码的 uint 字数。
             /// </summary>
             public int wordsPerCluster;
 
             /// <summary>
-            /// The number of lights culled this frame.
+            /// 本帧参与剔除的光源数。
             /// </summary>
             public int catchedLightCount;
 
             /// <summary>
-            /// Whether the current camera is orthographic.
+            /// 当前相机是否为正交投影。
             /// </summary>
             public bool cameraOrthographic;
 
             /// <summary>
-            /// The clip-to-view matrix.
+            /// 裁剪空间到视图空间矩阵。
             /// </summary>
             public Matrix4x4 clipToView;
 
             /// <summary>
-            /// The view-to-clip matrix.
+            /// 视图空间到裁剪空间矩阵。
             /// </summary>
             public Matrix4x4 viewToClip;
 
             /// <summary>
-            /// The clip-to-world matrix.
+            /// 裁剪空间到世界空间矩阵。
             /// </summary>
             public Matrix4x4 clipToWorld;
         }
 
-        // ── Constants ──
+        // ── 常量 ──
 
         private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;
         private const int CLUSTER_MIN_Z_SLIZE = 16;
@@ -482,87 +447,84 @@ namespace HN.HNRP
         private const string CLUSTER_CULLING_CS_KERNEL_NAME =
             "ClusterCullingLightCS";
 
-        // ── Data structures ──
+        // ── 数据结构 ──
 
         /// <summary>
-        /// GPU-side constant buffer layout for cluster culling light parameters.
-        /// Must match the layout declared in the compute shader.
+        /// 簇剔除光照参数的 GPU 侧常量缓冲布局。
+        /// 必须与 compute shader 中声明的布局一致。
         /// </summary>
         public unsafe struct ClusterCullingLightParams
         {
-            /// <summary>The cluster grid dimensions in X and Y.</summary>
+            /// <summary>簇网格在 X 与 Y 方向上的尺寸。</summary>
             public Vector2 clusterSize;
 
             /// <summary>
-            /// The Z-axis scale (x) and offset (y) for cluster depth slices.
+            /// 簇深度切片的 Z 轴缩放（x）与偏移（y）。
             /// </summary>
             public Vector2 clusterZScaleOffset;
 
-            /// <summary>Number of uint words per cluster mask.</summary>
+            /// <summary>每个簇掩码的 uint 字数。</summary>
             public int wordsPerCluster;
 
-            /// <summary>Number of directional lights (excluding main).</summary>
+            /// <summary>方向光数量（不含主光）。</summary>
             public int directionalLightCount;
 
-            /// <summary>Number of point and spot lights.</summary>
+            /// <summary>点光与聚光灯数量。</summary>
             public int localLightCount;
 
-            /// <summary>Padding to maintain 16-byte alignment.</summary>
+            /// <summary>为保持 16 字节对齐而填充。</summary>
             public float unused;
         }
 
         /// <summary>
-        /// Shader property identifiers used by this pass and its consumers.
+        /// 本 pass 与其消费方使用的 shader 属性标识。
         /// </summary>
         public static class PropertyIDs
         {
             /// <summary>
-            /// Shader property ID for the cluster culling light mask buffer.
-            /// Value: <c>_ClusterCullingLightMaskBuffer</c>.
+            /// 簇剔除光照掩码缓冲的 shader 属性 ID。值：<c>_ClusterCullingLightMaskBuffer</c>。
             /// </summary>
             public static readonly int clusterCullingLightMaskBuffer =
                 Shader.PropertyToID("_ClusterCullingLightMaskBuffer");
 
             /// <summary>
-            /// Shader property ID for the cluster culling light params constant buffer.
-            /// Value: <c>_ClusterCullingLightParamsBuffer</c>.
+            /// 簇剔除光照参数常量缓冲的 shader 属性 ID。
+            /// 值：<c>_ClusterCullingLightParamsBuffer</c>。
             /// </summary>
             public static readonly int clusterCullingLightParamsBuffer =
                 Shader.PropertyToID("_ClusterCullingLightParamsBuffer");
 
             /// <summary>
-            /// Shader property ID for culling params 0 (zScale, zOffset,
-            /// wordsPerCluster, isOrthographic).
-            /// Value: <c>_ClusterCullingLightParams0</c>.
+            /// culling 参数 0 的 shader 属性 ID（zScale、zOffset、
+            /// wordsPerCluster、isOrthographic）。值：<c>_ClusterCullingLightParams0</c>。
             /// </summary>
             public static readonly int cullingParams0 =
                 Shader.PropertyToID("_ClusterCullingLightParams0");
 
             /// <summary>
-            /// Shader property ID for culling params 1 (clusterSizeX, clusterSizeY,
-            /// clusterSizeZ, visibleLightCount).
-            /// Value: <c>_ClusterCullingLightParams1</c>.
+            /// culling 参数 1 的 shader 属性 ID（clusterSizeX、clusterSizeY、
+            /// clusterSizeZ、visibleLightCount）。值：<c>_ClusterCullingLightParams1</c>。
             /// </summary>
             public static readonly int cullingParams1 =
                 Shader.PropertyToID("_ClusterCullingLightParams1");
 
             /// <summary>
-            /// Shader property ID for the clip-to-view matrix.
-            /// Value: <c>_ClusterCullingLightClipToView</c>.
+            /// 裁剪空间到视图空间矩阵的 shader 属性 ID。
+            /// 值：<c>_ClusterCullingLightClipToView</c>。
             /// </summary>
             public static readonly int cullingClipToViewMatrix =
                 Shader.PropertyToID("_ClusterCullingLightClipToView");
 
             /// <summary>
-            /// Shader property ID for the view-to-clip matrix.
-            /// Value: <c>_ClusterCullingLightViewToClip</c>.
+            /// 视图空间到裁剪空间矩阵的 shader 属性 ID。
+            /// 值：<c>_ClusterCullingLightViewToClip</c>。
             /// </summary>
             public static readonly int cullingViewToClipMatrix =
                 Shader.PropertyToID("_ClusterCullingLightViewToClip");
 
             /// <summary>
-            /// Shader property ID for the clip-to-world matrix.
-            /// Value: <c>_ClusterCullingLightClipToWorld</c>.
+            /// 裁剪空间到世界空间矩阵的 shader 属性 ID。
+            /// 值：<c>_ClusterCullingLightClipToWorld</c>。
             /// </summary>
             public static readonly int cullingClipToWorldMatrix =
                 Shader.PropertyToID("_ClusterCullingLightClipToWorld");

@@ -10,48 +10,46 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Pure helper logic for realtime reflection probe rendering: time-slicing
-    /// face scheduling, realtime-mode filtering, and reflection probe lookup from
-    /// <see cref="VisibleReflectionProbe"/> culling data.
+    /// 实时反射探针渲染的纯辅助逻辑：时间切片面调度、实时模式过滤，
+    /// 以及从 <see cref="VisibleReflectionProbe"/> 剔除数据中查找反射探针。
     /// </summary>
     public static class ReflectionProbeRenderUtils
     {
         /// <summary>
-        /// The six cubemap face indices (<c>0..5</c>).
+        /// 六个 cubemap 面索引（<c>0..5</c>）。
         /// </summary>
         public static readonly int[] AllFaces = { 0, 1, 2, 3, 4, 5 };
 
-        private static readonly int[] s_EmptyFaces = Array.Empty<int>();
+        private static readonly int[] emptyFaces = Array.Empty<int>();
 
         /// <summary>
-        /// The <c>m_InstanceId</c> backing field of <see cref="VisibleReflectionProbe"/>.
-        /// Unity 2022.3 exposes no public members on this struct; the instance id is
-        /// read once via reflection and cached.
+        /// <see cref="VisibleReflectionProbe"/> 的 <c>m_InstanceId</c> 后备字段。
+        /// Unity 2022.3 未在该结构体上暴露任何公共成员；实例 id 通过反射
+        /// 读取一次并缓存。
         /// </summary>
-        private static readonly FieldInfo s_InstanceIdField =
+        private static readonly FieldInfo instanceIdField =
             typeof(VisibleReflectionProbe).GetField(
                 "m_InstanceId",
                 BindingFlags.NonPublic | BindingFlags.Instance);
 
         /// <summary>
-        /// Computes which cubemap faces should be rendered this frame for a probe
-        /// according to its time-slicing mode.
+        /// 根据探针的时间切片模式，计算本帧应渲染哪些 cubemap 面。
         /// </summary>
-        /// <param name="mode">The probe's time-slicing mode.</param>
-        /// <param name="probeInstanceId">The probe's instance id (phase offset).</param>
-        /// <param name="frameCount">The current frame count.</param>
-        /// <param name="faceProgress">The current face progress for
-        /// <see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/>.</param>
-        /// <returns>Indices of the faces to render this frame (empty when none).</returns>
+        /// <param name="mode">探针的时间切片模式。</param>
+        /// <param name="probeInstanceId">探针实例 id（相位偏移）。</param>
+        /// <param name="frameCount">当前帧计数。</param>
+        /// <param name="faceProgress">用于
+        /// <see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/> 的当前面进度。</param>
+        /// <returns>本帧需渲染的面索引（无面时返回空数组）。</returns>
         /// <remarks>
         /// <list type="bullet">
-        /// <item><see cref="ReflectionProbeTimeSlicingMode.AllFacesAtOnce"/> —
-        /// all six faces once every six frames; the phase is offset by the probe's
-        /// instance id so different probes refresh on different frames.</item>
-        /// <item><see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/> —
-        /// exactly one face per frame, rotating through 0..5.</item>
-        /// <item><see cref="ReflectionProbeTimeSlicingMode.NoTimeSlicing"/> —
-        /// all six faces every frame.</item>
+        /// <item><see cref="ReflectionProbeTimeSlicingMode.AllFacesAtOnce"/> ——
+        /// 每六帧一次性渲染全部六个面；相位按探针实例 id 偏移，
+        /// 使不同探针在不同帧刷新。</item>
+        /// <item><see cref="ReflectionProbeTimeSlicingMode.IndividualFaces"/> ——
+        /// 每帧只渲染一个面，在 0..5 间轮转。</item>
+        /// <item><see cref="ReflectionProbeTimeSlicingMode.NoTimeSlicing"/> ——
+        /// 每帧渲染全部六个面。</item>
         /// </list>
         /// </remarks>
         public static int[] GetFacesToRender(
@@ -75,29 +73,28 @@ namespace HN.HNRP
                         return AllFaces;
                     }
 
-                    return s_EmptyFaces;
+                    return emptyFaces;
 
                 default:
-                    return s_EmptyFaces;
+                    return emptyFaces;
             }
         }
 
         /// <summary>
-        /// Advances the individual-face progress counter after a face was rendered.
+        /// 在一个面渲染完成后推进逐面进度计数器。
         /// </summary>
-        /// <param name="faceProgress">The current progress counter.</param>
-        /// <returns>The next progress counter value.</returns>
+        /// <param name="faceProgress">当前进度计数器。</param>
+        /// <returns>下一个进度计数器值。</returns>
         public static int AdvanceIndividualFace(int faceProgress)
         {
             return faceProgress + 1;
         }
 
         /// <summary>
-        /// Returns whether the given probe is a realtime probe
-        /// (<see cref="ReflectionProbeMode.Realtime"/>).
+        /// 返回给定探针是否为实时探针（<see cref="ReflectionProbeMode.Realtime"/>）。
         /// </summary>
-        /// <param name="probe">The reflection probe to inspect.</param>
-        /// <returns><c>true</c> if the probe is set to realtime mode.</returns>
+        /// <param name="probe">要检查的反射探针。</param>
+        /// <returns>探针为实时模式时返回 <c>true</c>。</returns>
         public static bool IsRealtimeProbe(ReflectionProbe probe)
         {
             return probe != null && probe.mode == ReflectionProbeMode.Realtime;
@@ -114,28 +111,28 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Reads the probe instance id from a <see cref="VisibleReflectionProbe"/>
-        /// culling entry. Unity 2022.3 exposes no public field on this struct, so the
-        /// private <c>m_InstanceId</c> field is read via cached reflection.
+        /// 从 <see cref="VisibleReflectionProbe"/> 剔除条目读取探针实例 id。
+        /// Unity 2022.3 未在该结构体上暴露公共字段，因此通过缓存反射读取
+        /// 私有 <c>m_InstanceId</c> 字段。
         /// </summary>
-        /// <param name="visibleProbe">The visible reflection probe entry.</param>
-        /// <returns>The reflection probe instance id, or <c>0</c> when unavailable.</returns>
+        /// <param name="visibleProbe">可见反射探针条目。</param>
+        /// <returns>反射探针实例 id；不可用时返回 <c>0</c>。</returns>
         public static int GetProbeInstanceId(in VisibleReflectionProbe visibleProbe)
         {
-            if (s_InstanceIdField == null)
+            if (instanceIdField == null)
             {
                 return 0;
             }
 
-            return (int)s_InstanceIdField.GetValue(visibleProbe);
+            return (int)instanceIdField.GetValue(visibleProbe);
         }
 
         /// <summary>
-        /// Gets the <see cref="ReflectionProbe"/> component from a
-        /// <see cref="VisibleReflectionProbe"/> culling entry.
+        /// 从 <see cref="VisibleReflectionProbe"/> 剔除条目获取
+        /// <see cref="ReflectionProbe"/> 组件。
         /// </summary>
-        /// <param name="visibleProbe">The visible reflection probe entry.</param>
-        /// <returns>The probe component, or <c>null</c> when not resolvable.</returns>
+        /// <param name="visibleProbe">可见反射探针条目。</param>
+        /// <returns>探针组件；无法解析时返回 <c>null</c>。</returns>
         public static ReflectionProbe GetReflectionProbe(in VisibleReflectionProbe visibleProbe)
         {
             int instanceId = GetProbeInstanceId(visibleProbe);
@@ -148,19 +145,19 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Gets the world-space rotation for a cubemap face index
-        /// (<c>0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z</c>) using the OpenGL-style
-        /// cubemap face convention used by Unity.
+        /// 获取 cubemap 面索引对应的世界空间旋转
+        /// （<c>0=+X, 1=-X, 2=+Y, 3=-Y, 4=+Z, 5=-Z</c>），使用 Unity 采用的
+        /// OpenGL 风格 cubemap 面约定。
         /// </summary>
-        /// <param name="face">The cubemap face index in <c>0..5</c>.</param>
-        /// <returns>The camera rotation for that face.</returns>
+        /// <param name="face">取值 <c>0..5</c> 的 cubemap 面索引。</param>
+        /// <returns>该面的相机旋转。</returns>
         public static Quaternion GetFaceRotation(int face)
         {
             int index = Mathf.Clamp(face, 0, 5);
-            return s_FaceRotations[index];
+            return faceRotations[index];
         }
 
-        private static readonly Quaternion[] s_FaceRotations =
+        private static readonly Quaternion[] faceRotations =
         {
             Quaternion.LookRotation(Vector3.right, Vector3.up),     // +X
             Quaternion.LookRotation(Vector3.left, Vector3.up),      // -X
@@ -171,14 +168,13 @@ namespace HN.HNRP
         };
 
         /// <summary>
-        /// Selects the <see cref="RenderGraphAsset"/> used to render the given probe,
-        /// honoring the probe's <see cref="HNAdditionalReflectionProbeData.RenderGraphViewIndex"/>.
-        /// Falls back to the first view in the reflection render graph view block when
-        /// the index is out of range or the probe has no additional data.
+        /// 选择用于渲染给定探针的 <see cref="RenderGraphAsset"/>，
+        /// 遵循探针的 <see cref="HNAdditionalReflectionProbeData.RenderGraphViewIndex"/>。
+        /// 当索引越界或探针没有附加数据时，回退到反射渲染图视图块的第一个视图。
         /// </summary>
-        /// <param name="asset">The pipeline asset providing the reflection view block.</param>
-        /// <param name="probe">The probe being rendered (may be <c>null</c>).</param>
-        /// <returns>The selected reflection render graph, or <c>null</c>.</returns>
+        /// <param name="asset">提供反射视图块的渲染管线资源。</param>
+        /// <param name="probe">正在渲染的探针（可为 <c>null</c>）。</param>
+        /// <returns>选中的反射渲染图；不存在时返回 <c>null</c>。</returns>
         public static RenderGraphAsset SelectReflectionRenderGraph(
             HNRenderPipelineAsset asset,
             ReflectionProbe probe)

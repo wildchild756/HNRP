@@ -8,96 +8,94 @@ using UnityEngine.Experimental.Rendering.RenderGraphModule;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Defines the direction of a <see cref="PassSlot"/>.
+    /// 定义 <see cref="PassSlot"/> 的方向。
     /// </summary>
     /// <remarks>
     /// <list type="bullet">
-    ///   <item><see cref="Input"/> — reads the resource handle from a connected output slot.</item>
-    ///   <item><see cref="Output"/> — creates a resource handle that input slots can read.</item>
+    ///   <item><see cref="Input"/> —— 从已连接的输出 slot 读取资源句柄。</item>
+    ///   <item><see cref="Output"/> —— 创建输入 slot 可读取的资源句柄。</item>
     /// </list>
     /// </remarks>
     public enum SlotDirection
     {
         /// <summary>
-        /// Input slot: reads from a connected output's handle.
+        /// 输入 slot：从已连接的输出句柄读取。
         /// </summary>
         Input,
 
         /// <summary>
-        /// Output slot: creates a resource handle for downstream inputs.
+        /// 输出 slot：为下游输入创建资源句柄。
         /// </summary>
         Output,
     }
 
     /// <summary>
-    /// Abstract base class for name-based render pass slots.
-    /// Replaces the legacy index-based slot system with a name-driven model.
+    /// 基于名称的渲染 pass slot 抽象基类。
+    /// 用名称驱动模型取代旧的基于索引的 slot 系统。
     /// </summary>
     /// <remarks>
-    /// <para><b>Connection model:</b></para>
+    /// <para><b>连接模型：</b></para>
     /// <list type="bullet">
-    ///   <item>Output slots call <see cref="PassSlot{T}.SetHandle"/> to publish a resource handle.</item>
-    ///   <item>Output slots call <see cref="Connect"/> to link an input slot.</item>
-    ///   <item>Input slots call <see cref="PassSlot{T}.ReadHandle"/> to retrieve the connected output's handle.</item>
+    ///   <item>输出 slot 通过 <see cref="PassSlot{T}.SetHandle"/> 发布资源句柄。</item>
+    ///   <item>输出 slot 通过 <see cref="Connect"/> 连接一个输入 slot。</item>
+    ///   <item>输入 slot 通过 <see cref="PassSlot{T}.ReadHandle"/> 读取已连接输出的句柄。</item>
     /// </list>
     /// <para>
-    /// This class is pure C# — no <c>ScriptableObject</c> inheritance and no Unity serialization
-    /// attributes. It is designed to be lightweight and testable outside the Unity Editor.
+    /// 本类为纯 C# —— 无 <c>ScriptableObject</c> 继承、无 Unity 序列化特性。
+    /// 设计为轻量，可在 Unity Editor 之外测试。
     /// </para>
     /// </remarks>
     public abstract class PassSlot
     {
         /// <summary>
-        /// Gets the name of this slot. Must be non-empty and unique within a pass.
+        /// 获取本 slot 的名称。必须非空且在单个 pass 内唯一。
         /// </summary>
         public string SlotName { get; }
 
         /// <summary>
-        /// Gets the direction of this slot — <see cref="SlotDirection.Input"/> or
-        /// <see cref="SlotDirection.Output"/>.
+        /// 获取本 slot 的方向 —— <see cref="SlotDirection.Input"/> 或
+        /// <see cref="SlotDirection.Output"/>。
         /// </summary>
         public SlotDirection Direction { get; }
 
         /// <summary>
-        /// Gets a value indicating whether this slot is connected.
-        /// For input slots, <c>true</c> after a successful <see cref="Connect"/> call.
-        /// For output slots, always <c>false</c> (an output can drive multiple inputs
-        /// and does not track its own connection state).
+        /// 获取本 slot 是否已连接。
+        /// 对输入 slot，<see cref="Connect"/> 成功后为 <c>true</c>；
+        /// 对输出 slot 恒为 <c>false</c>（一个输出可驱动多个输入，不跟踪自身连接状态）。
         /// </summary>
         public bool IsConnected { get; protected set; }
 
         /// <summary>
-        /// For input slots: the output slot this input is connected to.
-        /// For output slots: always <c>null</c>.
+        /// 对输入 slot：本输入连接到的输出 slot。
+        /// 对输出 slot：恒为 <c>null</c>。
         /// </summary>
         protected PassSlot? connectedOutput;
 
         /// <summary>
-        /// The <see cref="Pass"/> that owns this slot.
-        /// Set by <see cref="Pass.RegisterSlot"/>; used to derive pass-level
-        /// dependencies from connections at build time.
+        /// 拥有本 slot 的 <see cref="Pass"/>。由 <see cref="Pass.RegisterSlot"/> 设置；
+        /// 构建期用于从连接推导 pass 级依赖。
         /// </summary>
         public Pass OwnerPass { get; internal set; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="PassSlot"/> class.
+        /// 初始化 <see cref="PassSlot"/> 的新实例。
         /// </summary>
         /// <param name="slotName">
-        /// The name of the slot. Must be non-null and non-empty (whitespace-only is rejected).
+        /// slot 名称。必须非 null 且非空（纯空白被拒绝）。
         /// </param>
         /// <param name="direction">
-        /// Whether this slot is an <see cref="SlotDirection.Input"/> or
-        /// <see cref="SlotDirection.Output"/>.
+        /// 本 slot 是 <see cref="SlotDirection.Input"/> 还是
+        /// <see cref="SlotDirection.Output"/>。
         /// </param>
         /// <exception cref="ArgumentException">
-        /// Thrown when <paramref name="slotName"/> is <c>null</c>, empty, or whitespace-only.
+        /// 当 <paramref name="slotName"/> 为 <c>null</c>、空或纯空白时抛出。
         /// </exception>
         protected PassSlot(string slotName, SlotDirection direction)
         {
             if (string.IsNullOrWhiteSpace(slotName))
             {
                 throw new ArgumentException(
-                    "Slot name must not be null, empty, or whitespace-only.",
+                    "Slot 名不能为 null、空或纯空白。",
                     nameof(slotName));
             }
 
@@ -106,21 +104,21 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Connects this output slot to the given input slot.
-        /// After connection, the input slot can call <see cref="PassSlot{T}.ReadHandle"/>
-        /// to retrieve this output's resource handle.
+        /// 把本输出 slot 连接到给定输入 slot。
+        /// 连接后，输入 slot 可调用 <see cref="PassSlot{T}.ReadHandle"/>
+        /// 读取本输出的资源句柄。
         /// </summary>
         /// <param name="input">
-        /// The input slot to connect to. Must have <see cref="SlotDirection.Input"/>.
+        /// 要连接的输入 slot。必须为 <see cref="SlotDirection.Input"/>。
         /// </param>
         /// <exception cref="ArgumentNullException">
-        /// Thrown when <paramref name="input"/> is <c>null</c>.
+        /// 当 <paramref name="input"/> 为 <c>null</c> 时抛出。
         /// </exception>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when this slot is not an output, or <paramref name="input"/> is not an input.
+        /// 当本 slot 不是输出，或 <paramref name="input"/> 不是输入时抛出。
         /// </exception>
         /// <exception cref="ArgumentException">
-        /// Thrown when the output and input slots carry different resource types.
+        /// 当输出与输入 slot 携带不同资源类型时抛出。
         /// </exception>
         public virtual void Connect(PassSlot input)
         {
@@ -132,20 +130,20 @@ namespace HN.HNRP
             if (Direction != SlotDirection.Output)
             {
                 throw new InvalidOperationException(
-                    "Only output slots can initiate a connection.");
+                    "只有输出 slot 能发起连接。");
             }
 
             if (input.Direction != SlotDirection.Input)
             {
                 throw new InvalidOperationException(
-                    "Can only connect an output slot to an input slot.");
+                    "只能把输出 slot 连接到输入 slot。");
             }
 
             if (!CanConnectTo(input))
             {
                 throw new ArgumentException(
-                    $"Slot type mismatch: {GetType().Name} cannot connect to {input.GetType().Name}. " +
-                    "Output and input slots must carry the same resource type.");
+                    $"Slot 类型不匹配：{GetType().Name} 无法连接到 {input.GetType().Name}。" +
+                    "输出与输入 slot 必须携带相同资源类型。");
             }
 
             input.connectedOutput = this;
@@ -153,69 +151,61 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Determines whether this output slot can connect to the given input slot.
-        /// The base implementation allows any connection; <see cref="PassSlot{T}"/>
-        /// overrides it to require matching resource types.
+        /// 判断本输出 slot 能否连接到给定输入 slot。
+        /// 基类允许任意连接；<see cref="PassSlot{T}"/> 覆写为要求资源类型匹配。
         /// </summary>
-        /// <param name="input">The input slot to validate against.</param>
-        /// <returns><c>true</c> when the connection is type-compatible.</returns>
+        /// <param name="input">要校验的输入 slot。</param>
+        /// <returns>类型兼容时返回 <c>true</c>。</returns>
         protected virtual bool CanConnectTo(PassSlot input) => true;
 
         /// <summary>
-        /// Clears this slot's stored handle. Call at the start of each frame
-        /// before <c>Record</c> so a stale handle from a previous frame cannot be read.
+        /// 清除本 slot 保存的句柄。在每帧 <c>Record</c> 前调用，防止读到上一帧的
+        /// 过期句柄。
         /// </summary>
         public abstract void ResetHandle();
     }
 
     /// <summary>
-    /// A strongly-typed <see cref="PassSlot"/> that stores its resource handle
-    /// directly in a value-type field, eliminating per-frame boxing allocations.
+    /// 强类型 <see cref="PassSlot"/>：资源句柄直接存于值类型字段，
+    /// 消除逐帧装箱分配。
     /// </summary>
     /// <typeparam name="T">
-    /// The render graph resource handle struct this slot carries
-    /// (e.g. <see cref="TextureHandle"/>, <see cref="ComputeBufferHandle"/>,
-    /// <see cref="RendererListHandle"/>).
+    /// 本 slot 携带的渲染图资源句柄结构体（如 <see cref="TextureHandle"/>、
+    /// <see cref="ComputeBufferHandle"/>、<see cref="RendererListHandle"/>）。
     /// </typeparam>
     /// <remarks>
     /// <para>
-    /// <b>Zero-allocation:</b> the handle is stored directly in a typed field,
-    /// so <see cref="SetHandle"/> never boxes the struct. This keeps the
-    /// render loop allocation-free.
+    /// <b>零分配：</b>句柄直接存入类型化字段，<see cref="SetHandle"/> 永不对
+    /// 结构体装箱，保持渲染循环无分配。
     /// </para>
     /// <para>
-    /// <b><see cref="HasHandle"/> semantics:</b> for an output slot, <c>true</c>
-    /// only after <see cref="SetHandle"/> was called <i>and</i> the stored value
-    /// passes <see cref="IsValueValid"/>. For an input slot, <c>true</c> when the
-    /// connected output currently holds a valid handle. A default (invalid)
-    /// handle — e.g. <c>default(TextureHandle)</c> — is treated as "no handle".
-    /// Passes use this to decide whether to consume an upstream resource or
-    /// allocate their own.
+    /// <b><see cref="HasHandle"/> 语义：</b>对输出 slot，仅当 <see cref="SetHandle"/>
+    /// 被调用<i>且</i>存储值通过 <see cref="IsValueValid"/> 时为 <c>true</c>。
+    /// 对输入 slot，当已连接输出当前持有有效句柄时为 <c>true</c>。
+    /// 默认（无效）句柄 —— 例如 <c>default(TextureHandle)</c> —— 视为"无句柄"。
+    /// Pass 据此决定消费上游资源还是自建资源。
     /// </para>
     /// <para>
-    /// <b><see cref="ResetHandle"/>:</b> call at the start of each frame
-    /// before <c>Record</c> so stale handles from a previous frame cannot be read.
+    /// <b><see cref="ResetHandle"/>：</b>每帧 <c>Record</c> 前调用，
+    /// 防止读到上一帧的过期句柄。
     /// </para>
     /// </remarks>
     public class PassSlot<T> : PassSlot
     {
         /// <summary>
-        /// The value-type resource handle stored directly in this slot.
+        /// 直接保存在本 slot 中的值类型资源句柄。
         /// </summary>
-        private T m_Value;
+        private T value;
 
         /// <summary>
-        /// Whether <see cref="SetHandle"/> has been called since the last
-        /// <see cref="ResetHandle"/>.
+        /// 自上次 <see cref="ResetHandle"/> 后 <see cref="SetHandle"/> 是否被调用。
         /// </summary>
-        private bool m_HasValue;
+        private bool hasValue;
 
         /// <summary>
-        /// Gets a value indicating whether this slot currently holds a valid
-        /// resource handle. For an output slot, <c>true</c> only after
-        /// <see cref="SetHandle"/> was called with a value that passes
-        /// <see cref="IsValueValid"/>. For an input slot, <c>true</c> when the
-        /// connected output currently holds a valid handle.
+        /// 获取本 slot 当前是否持有有效资源句柄。对输出 slot，仅当
+        /// <see cref="SetHandle"/> 以通过 <see cref="IsValueValid"/> 的值被调用后为
+        /// <c>true</c>；对输入 slot，当已连接输出当前持有有效句柄时为 <c>true</c>。
         /// </summary>
         public bool HasHandle
         {
@@ -223,13 +213,13 @@ namespace HN.HNRP
             {
                 if (Direction == SlotDirection.Output)
                 {
-                    return m_HasValue && IsValueValid(m_Value);
+                    return hasValue && IsValueValid(value);
                 }
 
-                // Input: reflect the connected output's stored handle.
+                // 输入：反映已连接输出保存的句柄。
                 if (connectedOutput is PassSlot<T> output)
                 {
-                    return output.m_HasValue && IsValueValid(output.m_Value);
+                    return output.hasValue && IsValueValid(output.value);
                 }
 
                 return false;
@@ -237,94 +227,91 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Validates the stored handle value. The base implementation accepts any
-        /// value; concrete slots delegate to the Unity handle type's validity check
-        /// (e.g. <see cref="TextureHandle.IsValid"/>).
+        /// 校验保存的句柄值。基类接受任意值；具体 slot 委托给 Unity 句柄类型的
+        /// 有效性检查（如 <see cref="TextureHandle.IsValid"/>）。
         /// </summary>
-        /// <param name="value">The handle value to validate.</param>
-        /// <returns><c>true</c> when the handle is valid.</returns>
+        /// <param name="value">要校验的句柄值。</param>
+        /// <returns>句柄有效时返回 <c>true</c>。</returns>
         protected virtual bool IsValueValid(T value) => true;
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="PassSlot{T}"/> class.
+        /// 初始化 <see cref="PassSlot{T}"/> 的新实例。
         /// </summary>
-        /// <param name="slotName">The name of the slot.</param>
-        /// <param name="direction">Whether this is an input or output slot.</param>
+        /// <param name="slotName">slot 名称。</param>
+        /// <param name="direction">本 slot 是输入还是输出。</param>
         public PassSlot(string slotName, SlotDirection direction)
             : base(slotName, direction)
         {
         }
 
         /// <summary>
-        /// Sets the resource handle for this slot. Output slots use this to publish
-        /// the real render graph handle that connected input slots read via
-        /// <see cref="ReadHandle"/>. The value is stored directly (zero allocation).
+        /// 为本 slot 设置资源句柄。输出 slot 用它发布真实渲染图句柄，
+        /// 已连接输入 slot 经 <see cref="ReadHandle"/> 读取。值直接保存（零分配）。
         /// </summary>
-        /// <param name="value">The real render graph resource handle.</param>
+        /// <param name="value">真实渲染图资源句柄。</param>
         public void SetHandle(T value)
         {
-            m_Value = value;
-            m_HasValue = true;
+            this.value = value;
+            hasValue = true;
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Resets the stored value to <c>default</c> and clears the has-value flag.
+        /// 把存储值重置为 <c>default</c> 并清除 has-value 标志。
         /// </remarks>
         public override void ResetHandle()
         {
-            m_Value = default;
-            m_HasValue = false;
+            value = default;
+            hasValue = false;
         }
 
         /// <summary>
-        /// Reads the resource handle associated with this slot.
+        /// 读取与本 slot 关联的资源句柄。
         /// </summary>
         /// <returns>
-        /// For an output slot: its own stored handle.
-        /// For a connected input slot: the connected output's handle.
+        /// 对输出 slot：返回其自身保存的句柄。
+        /// 对已连接的输入 slot：返回已连接输出的句柄。
         /// </returns>
         /// <exception cref="InvalidOperationException">
-        /// Thrown when this is an input slot that is not yet connected.
+        /// 当本 slot 是尚未连接的输入时抛出。
         /// </exception>
         public T ReadHandle()
         {
             if (Direction == SlotDirection.Output)
             {
-                return m_Value;
+                return value;
             }
 
-            // Direction is Input
+            // 方向为 Input
             if (!IsConnected)
             {
                 throw new InvalidOperationException(
-                    "Input slot is not connected to an output slot. " +
-                    "Call Connect() on the output slot first.");
+                    "输入 slot 未连接到输出 slot。请先在输出 slot 上调用 Connect()。");
             }
 
-            return ((PassSlot<T>)connectedOutput).m_Value;
+            return ((PassSlot<T>)connectedOutput).value;
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Requires the input slot to carry the same resource type
-        /// (i.e. <see cref="PassSlot{T}"/> with the same <typeparamref name="T"/>).
+        /// 要求输入 slot 携带相同资源类型
+        /// （即 <see cref="PassSlot{T}"/> 且 <typeparamref name="T"/> 相同）。
         /// </remarks>
         protected override bool CanConnectTo(PassSlot input) => input is PassSlot<T>;
     }
 
-    #region Concrete Slot Types
+    #region 具体 Slot 类型
 
     /// <summary>
-    /// A <see cref="PassSlot{T}"/> that represents a texture resource.
+    /// 表示纹理资源的 <see cref="PassSlot{T}"/>。
     /// </summary>
     public class TextureSlot : PassSlot<TextureHandle>
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="TextureSlot"/> class.
+        /// 初始化 <see cref="TextureSlot"/> 的新实例。
         /// </summary>
-        /// <param name="slotName">The name of the texture slot.</param>
-        /// <param name="direction">Whether this is an input or output slot.</param>
+        /// <param name="slotName">纹理 slot 的名称。</param>
+        /// <param name="direction">本 slot 是输入还是输出。</param>
         public TextureSlot(string slotName, SlotDirection direction)
             : base(slotName, direction)
         {
@@ -332,22 +319,21 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// A <see cref="TextureHandle"/> is valid only when it references an
-        /// actual render graph texture — a default handle is not valid.
+        /// <see cref="TextureHandle"/> 仅当引用真实渲染图纹理时有效 —— 默认句柄无效。
         /// </remarks>
         protected override bool IsValueValid(TextureHandle value) => value.IsValid();
     }
 
     /// <summary>
-    /// A <see cref="PassSlot{T}"/> that represents a compute buffer resource.
+    /// 表示 compute buffer 资源的 <see cref="PassSlot{T}"/>。
     /// </summary>
     public class ComputeBufferSlot : PassSlot<ComputeBufferHandle>
     {
         /// <summary>
-        /// Initializes a new instance of the <see cref="ComputeBufferSlot"/> class.
+        /// 初始化 <see cref="ComputeBufferSlot"/> 的新实例。
         /// </summary>
-        /// <param name="slotName">The name of the compute buffer slot.</param>
-        /// <param name="direction">Whether this is an input or output slot.</param>
+        /// <param name="slotName">compute buffer slot 的名称。</param>
+        /// <param name="direction">本 slot 是输入还是输出。</param>
         public ComputeBufferSlot(string slotName, SlotDirection direction)
             : base(slotName, direction)
         {
@@ -355,8 +341,8 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// A <see cref="ComputeBufferHandle"/> is valid only when it references an
-        /// actual render graph buffer — a default handle is not valid.
+        /// <see cref="ComputeBufferHandle"/> 仅当引用真实渲染图缓冲时有效 ——
+        /// 默认句柄无效。
         /// </remarks>
         protected override bool IsValueValid(ComputeBufferHandle value) => value.IsValid();
     }

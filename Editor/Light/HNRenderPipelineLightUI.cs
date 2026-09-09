@@ -57,7 +57,7 @@ namespace HN.HNRP.Editor
             int type = EditorGUI.IntPopup(rect, Styles.type, selectedLightType, Styles.lightTypeTitles, Styles.lightTypeValues);
             if (EditorGUI.EndChangeCheck())
             {
-                s_SetGizmosDirty();
+                setGizmosDirty();
                 p.settings.lightType.intValue = type;
             }
             EditorGUI.EndProperty();
@@ -82,7 +82,7 @@ namespace HN.HNRP.Editor
             }
         }
 
-        static Func<int> s_SetGizmosDirty = SetGizmosDirty();
+        static Func<int> setGizmosDirty = SetGizmosDirty();
         static Func<int> SetGizmosDirty()
         {
             var type = Type.GetType("UnityEditor.AnnotationUtility,UnityEditor");
@@ -133,7 +133,7 @@ namespace HN.HNRP.Editor
         {
             int selectedShape = p.settings.isAreaLightType ? p.settings.lightType.intValue : 0;
 
-            // Handle all lights that are not in the default set
+            // 处理所有不在默认集合中的光源
             if (!Styles.lightTypeValues.Contains(p.settings.lightType.intValue))
             {
                 if (p.settings.lightType.intValue == (int)LightType.Disc)
@@ -319,7 +319,7 @@ namespace HN.HNRP.Editor
 //                         // Bias
 //                         DrawAdditionalShadowData(p, owner);
 
-//                         // this min bound should match the calculation in SharedLightData::GetNearPlaneMinBound()
+//                         // 该近平面最小边界应与 SharedLightData::GetNearPlaneMinBound() 中的计算保持一致
 //                         float nearPlaneMinBound = Mathf.Min(0.01f * p.settings.range.floatValue, 0.1f);
 //                         EditorGUILayout.Slider(p.settings.shadowsNearPlane, nearPlaneMinBound, 10.0f, Styles.ShadowNearPlane);
 //                         var isHololens = false;
@@ -350,7 +350,7 @@ namespace HN.HNRP.Editor
 
 //                     EditorGUI.BeginChangeCheck();
 //                     EditorGUILayout.PropertyField(p.customShadowLayers, Styles.customShadowLayers);
-//                     // Undo the changes in the light component because the SyncLightAndShadowLayers will change the value automatically when link is ticked
+//                     // 撤销 Light 组件上的更改，因为勾选关联后 SyncLightAndShadowLayers 会自动改值
 //                     if (EditorGUI.EndChangeCheck())
 //                     {
 //                         if (p.customShadowLayers.boolValue)
@@ -359,7 +359,7 @@ namespace HN.HNRP.Editor
 //                         }
 //                         else
 //                         {
-//                             p.serializedAdditionalDataObject.ApplyModifiedProperties(); // we need to push above modification the modification on object as it is used to sync
+//                             p.serializedAdditionalDataObject.ApplyModifiedProperties(); // 需把上述修改推送到对象上，因为它用于同步
 //                             SyncLightAndShadowLayers(p, p.renderingLayers);
 //                         }
 //                     }

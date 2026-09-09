@@ -11,148 +11,138 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Pool of <see cref="Camera"/> instances used to render realtime reflection
-    /// probe cubemap faces. Cameras are reused across frames instead of being
-    /// created per render, and the pool records which probe faces were already
-    /// rendered this frame so overlapping cameras do not render a probe twice.
-    /// Also manages <see cref="RTHandle"/> instances for probe cubemap faces so
-    /// they are not re-allocated every frame.
+    /// 用于渲染实时反射探针 cubemap 面的 <see cref="Camera"/> 实例池。
+    /// 相机跨帧复用而非每帧重建；池记录本帧已渲染的探针面，避免重叠相机
+    /// 重复渲染同一探针。同时管理探针 cubemap 面的 <see cref="RTHandle"/>，
+    /// 避免每帧重新分配。
     /// </summary>
     public sealed class ReflectionProbeCameraPool : IDisposable
     {
-        private Camera m_Camera;
+        private Camera camera;
 
         /// <summary>
-        /// Probe faces already rendered this frame. Keyed by
-        /// <c>probeInstanceId * 6 + face</c>.
+        /// 本帧已渲染的探针面。键为 <c>probeInstanceId * 6 + face</c>。
         /// </summary>
-        private readonly HashSet<int> m_RenderedFaces = new();
+        private readonly HashSet<int> renderedFaces = new();
 
         /// <summary>
-        /// Cached RTHandles for probe cubemap faces, keyed by
-        /// <c>probeInstanceId * 6 + face</c>. Handles persist across frames
-        /// and are only released on <see cref="Dispose"/>.
+        /// 探针 cubemap 面的缓存 RTHandle，键为 <c>probeInstanceId * 6 + face</c>。
+        /// 句柄跨帧存在，仅在 <see cref="Dispose"/> 时释放。
         /// </summary>
-        private readonly Dictionary<int, RTHandle> m_ProbeFaceHandles = new();
+        private readonly Dictionary<int, RTHandle> probeFaceHandles = new();
 
         /// <summary>
-        /// Cached cubemap instance ids for each face handle, keyed by
-        /// <c>probeInstanceId * 6 + face</c>. Used to detect when a probe's
-        /// realtime cubemap is rebuilt (its instance id changes) so the stale
-        /// <see cref="RTHandle"/> can be discarded and recreated against the
-        /// new cubemap.
+        /// 每个面句柄对应的 cubemap 实例 id，键为 <c>probeInstanceId * 6 + face</c>。
+        /// 用于检测探针实时 cubemap 是否被重建（其实例 id 会变化），
+        /// 以便丢弃过期 <see cref="RTHandle"/> 并针对新 cubemap 重建。
         /// </summary>
-        private readonly Dictionary<int, int> m_ProbeFaceCubemapIds = new();
+        private readonly Dictionary<int, int> probeFaceCubemapIds = new();
 
         /// <summary>
-        /// Gets a camera from the pool, creating one when the pool is empty.
-        /// The caller must return it via <see cref="ReturnCamera"/> after use.
+        /// 从池中获取相机；池为空时创建新相机。
+        /// 使用完毕后调用方须经 <see cref="ReturnCamera"/> 归还。
         /// </summary>
-        /// <returns>A camera for rendering a probe face.</returns>
+        /// <returns>用于渲染探针面的相机。</returns>
         public Camera GetCamera()
         {
-            if (m_Camera == null)
+            if (camera == null)
             {
-                m_Camera = CreateCamera();
+                camera = CreateCamera();
             }
 
-            return m_Camera;
+            return camera;
         }
 
         /// <summary>
-        /// Returns whether the given probe face was already rendered this frame.
+        /// 返回给定探针面本帧是否已渲染。
         /// </summary>
-        /// <param name="probeInstanceId">The reflection probe instance id.</param>
-        /// <param name="face">The cubemap face index (<c>0..5</c>).</param>
-        /// <returns><c>true</c> if the face was already rendered this frame.</returns>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
+        /// <param name="face">cubemap 面索引（<c>0..5</c>）。</param>
+        /// <returns>该面本帧已渲染时返回 <c>true</c>。</returns>
         public bool IsFaceRendered(int probeInstanceId, int face)
         {
-            return m_RenderedFaces.Contains(Encode(probeInstanceId, face));
+            return renderedFaces.Contains(Encode(probeInstanceId, face));
         }
 
         /// <summary>
-        /// Marks the given probe face as rendered this frame so later requests skip it.
+        /// 将给定探针面标记为本帧已渲染，使后续请求跳过它。
         /// </summary>
-        /// <param name="probeInstanceId">The reflection probe instance id.</param>
-        /// <param name="face">The cubemap face index (<c>0..5</c>).</param>
+        /// <param name="probeInstanceId">反射探针实例 id。</param>
+        /// <param name="face">cubemap 面索引（<c>0..5</c>）。</param>
         public void MarkFaceRendered(int probeInstanceId, int face)
         {
-            m_RenderedFaces.Add(Encode(probeInstanceId, face));
+            renderedFaces.Add(Encode(probeInstanceId, face));
         }
 
         /// <summary>
-        /// Gets or creates a cached <see cref="RTHandle"/> for a specific probe
-        /// cubemap face. The handle wraps a <see cref="RenderTargetIdentifier"/>
-        /// pointing at the given face of the cubemap. Handles are reused across
-        /// frames and released on <see cref="Dispose"/>.
+        /// 获取或创建某探针 cubemap 面的缓存 <see cref="RTHandle"/>。
+        /// 句柄包装指向该 cubemap 指定面的 <see cref="RenderTargetIdentifier"/>。
+        /// 句柄跨帧复用，在 <see cref="Dispose"/> 时释放。
         /// </summary>
-        /// <param name="probeInstanceId">The probe instance id.</param>
-        /// <param name="face">The cubemap face index (0..5).</param>
-        /// <param name="cubemap">The cubemap render texture.</param>
-        /// <returns>The cached RTHandle for this probe face.</returns>
+        /// <param name="probeInstanceId">探针实例 id。</param>
+        /// <param name="face">cubemap 面索引（0..5）。</param>
+        /// <param name="cubemap">cubemap 渲染纹理。</param>
+        /// <returns>该探针面的缓存 RTHandle。</returns>
         public RTHandle GetOrCreateFaceHandle(int probeInstanceId, int face, RenderTexture cubemap)
         {
             int key = Encode(probeInstanceId, face);
-            if (m_ProbeFaceHandles.TryGetValue(key, out RTHandle existing))
+            if (probeFaceHandles.TryGetValue(key, out RTHandle existing))
             {
-                // A cached handle is only valid while the cubemap identity is
-                // unchanged. Unity rebuilds probe.realtimeTexture when probe
-                // parameters change, so a stale handle (holding the destroyed
-                // RenderTexture's instance id) must be recreated.
-                if (m_ProbeFaceCubemapIds.TryGetValue(key, out int cachedInstanceId) &&
+                // 缓存句柄仅在 cubemap 标识不变时有效。Unity 在探针参数
+                // 变化时会重建 probe.realtimeTexture，因此过期的句柄
+                // （持有已销毁 RenderTexture 的实例 id）必须重建。
+                if (probeFaceCubemapIds.TryGetValue(key, out int cachedInstanceId) &&
                     cachedInstanceId == cubemap.GetInstanceID())
                 {
                     return existing;
                 }
 
                 existing?.Release();
-                m_ProbeFaceHandles.Remove(key);
-                m_ProbeFaceCubemapIds.Remove(key);
+                probeFaceHandles.Remove(key);
+                probeFaceCubemapIds.Remove(key);
             }
 
             var targetId = new RenderTargetIdentifier(cubemap, 0, (CubemapFace)face, 0);
             var handle = RTHandles.Alloc(targetId, "RealtimeProbeFace" + key);
-            m_ProbeFaceHandles[key] = handle;
-            m_ProbeFaceCubemapIds[key] = cubemap.GetInstanceID();
+            probeFaceHandles[key] = handle;
+            probeFaceCubemapIds[key] = cubemap.GetInstanceID();
             return handle;
         }
 
         /// <summary>
-        /// Starts a new frame: clears the previous frame's rendered-face set
-        /// and rendered probe textures.
+        /// 开始新帧：清除上一帧的已渲染面集合与已渲染探针纹理。
         /// </summary>
         public void BeginFrame()
         {
-            m_RenderedFaces.Clear();
+            renderedFaces.Clear();
         }
 
         /// <summary>
-        /// Ends the frame. Retained as an extension point; cameras are returned by
-        /// the caller and the rendered set is cleared by <see cref="BeginFrame"/>.
+        /// 结束本帧。保留作为扩展点；相机由调用方归还，
+        /// 已渲染集合由 <see cref="BeginFrame"/> 清除。
         /// </summary>
         public void EndFrame()
         {
         }
 
         /// <summary>
-        /// Destroys all pooled cameras, releases all cached RTHandles,
-        /// and clears all state.
+        /// 销毁所有池化相机、释放全部缓存 RTHandle 并清空所有状态。
         /// </summary>
         public void Dispose()
         {
-            if (m_Camera != null)
+            if (camera != null)
             {
-                UnityEngine.Object.DestroyImmediate(m_Camera.gameObject);
+                UnityEngine.Object.DestroyImmediate(camera.gameObject);
             }
 
-            foreach (RTHandle handle in m_ProbeFaceHandles.Values)
+            foreach (RTHandle handle in probeFaceHandles.Values)
             {
                 handle?.Release();
             }
 
-            m_ProbeFaceHandles.Clear();
-            m_ProbeFaceCubemapIds.Clear();
-            m_RenderedFaces.Clear();
+            probeFaceHandles.Clear();
+            probeFaceCubemapIds.Clear();
+            renderedFaces.Clear();
         }
 
         private static int Encode(int probeInstanceId, int face)

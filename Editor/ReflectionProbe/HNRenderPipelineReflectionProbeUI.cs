@@ -262,7 +262,7 @@ namespace HN.HNRP.Editor
         {
             ReflectionProbe reflectionProbe = (ReflectionProbe)owner.target;
 
-            // Disable baking of multiple probes with different modes
+            // 禁止对多种不同模式的探针一起烘焙
             if (p.mode.hasMultipleDifferentValues)
             {
                 EditorGUILayout.HelpBox(
@@ -272,13 +272,13 @@ namespace HN.HNRP.Editor
                 return;
             }
 
-            // Check if current mode support baking
+            // 检查当前模式是否支持烘焙
             ReflectionProbeMode mode = (ReflectionProbeMode)p.mode.intValue;
             var doesModeSupportBaking = mode == ReflectionProbeMode.Custom || mode == ReflectionProbeMode.Baked;
             if (!doesModeSupportBaking)
                 return;
             
-            // Check if all scene are saved to a file (requirement to bake probes)
+            // 检查所有场景是否已保存到文件（烘焙探针的前提）
             foreach (var target in p.serializedObject.targetObjects)
             {
                 var comp = (Component)target;
@@ -348,10 +348,10 @@ namespace HN.HNRP.Editor
         }
 
 
-        private static MethodInfo k_EditorGUI_ButtonWithDropdownList = typeof(EditorGUI).GetMethod("ButtonWithDropdownList", BindingFlags.Static | BindingFlags.NonPublic, null, CallingConventions.Any, new[] { typeof(GUIContent), typeof(string[]), typeof(GenericMenu.MenuFunction2), typeof(GUILayoutOption[]) }, new ParameterModifier[0]);
+        private static MethodInfo editorGuiButtonWithDropdownList = typeof(EditorGUI).GetMethod("ButtonWithDropdownList", BindingFlags.Static | BindingFlags.NonPublic, null, CallingConventions.Any, new[] { typeof(GUIContent), typeof(string[]), typeof(GenericMenu.MenuFunction2), typeof(GUILayoutOption[]) }, new ParameterModifier[0]);
         private static bool ButtonWithDropdownList(GUIContent content, string[] buttonNames, GenericMenu.MenuFunction2 callback, params GUILayoutOption[] options)
         {
-            return (bool)k_EditorGUI_ButtonWithDropdownList.Invoke(null, new object[] { content, buttonNames, callback, options });
+            return (bool)editorGuiButtonWithDropdownList.Invoke(null, new object[] { content, buttonNames, callback, options });
         }
 
         private static void GetReflectionProbeTexturePath(ReflectionProbe probe, out string textureName, out string extension, out string folderPath, out string fullPath)

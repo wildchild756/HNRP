@@ -76,7 +76,7 @@ namespace HN.HNRP
             float n = BuiltinCamera.nearClipPlane;
             float f = BuiltinCamera.farClipPlane;
 
-            // p[2][3] = (reverseZ ? 1 : -1) * (depth_0_1 ? 1 : 2) * (f * n) / (f - n)
+            // p[2][3] = (reverseZ ? 1 : -1) * (depth_0_1 ? 1 : 2) * (f * n) / (f - n)，据此推断 reverseZ 与深度约定
             float scale = viewConstants.projMatrix[2, 3] / (f * n) * (f - n);
             bool reverseZ = scale > 0;
             bool flipProj = viewConstants.invProjMatrix.MultiplyPoint(new Vector3(0, 1, 0)).y < 0;
@@ -123,9 +123,9 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Per-camera render graph view index.
-        /// Used to select which render graph view from <see cref="HNRenderPipelineAsset"/> to use.
-        /// The index corresponds to the position in the render graph view keys.
+        /// 每相机的渲染图视图索引。
+        /// 用于从 <see cref="HNRenderPipelineAsset"/> 中选择使用哪个渲染图视图。
+        /// 索引对应渲染图视图键列表中的位置。
         /// </summary>
         public int RenderGraphViewIndex
         {
@@ -232,7 +232,7 @@ namespace HN.HNRP
             {
                 GeometryUtility.CalculateFrustumPlanes(viewProjMatrix, frustum.planes);
 
-                // We need to recalculate the near and far planes otherwise it does not work for oblique projection matrices used for reflection.
+                // 需要重算近/远平面，否则反射所用的斜投影矩阵下近/远平面不正确。
                 Plane nearPlane = new Plane();
                 nearPlane.SetNormalAndPosition(viewDir, viewPos);
                 nearPlane.distance -= nearClipPlane;
@@ -244,7 +244,7 @@ namespace HN.HNRP
                 frustum.planes[4] = nearPlane;
                 frustum.planes[5] = farPlane;
 
-                // Compute corners from the planes instead of projection matrix. Otherwise you get the same issue with near and far for oblique projection.
+                // 依据平面而非投影矩阵计算角点，否则斜投影的近/远平面存在同样问题。
                 frustum.corners[0] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[3], frustum.planes[4]);
                 frustum.corners[1] = IntersectFrustumPlanes(frustum.planes[1], frustum.planes[3], frustum.planes[4]);
                 frustum.corners[2] = IntersectFrustumPlanes(frustum.planes[0], frustum.planes[2], frustum.planes[4]);

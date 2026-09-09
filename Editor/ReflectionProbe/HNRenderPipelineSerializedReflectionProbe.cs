@@ -53,7 +53,7 @@ namespace HN.HNRP.Editor
                 serializedObject.FindProperty("m_FarClip")
             };
 
-            // HNRP specific properties
+            // HNRP 专属属性
             renderGraphViewIndex = serializedAdditionalDataObject.FindProperty("renderGraphViewIndex");
         }
 
@@ -93,7 +93,7 @@ namespace HN.HNRP.Editor
         public SerializedProperty occlusionCulling { get; }
         public SerializedProperty[] nearAndFarClipingPlanes { get; }
 
-        // HNRP specific properties
+        // HNRP 专属属性
         public SerializedProperty renderGraphViewIndex { get; }
 
     }

@@ -8,85 +8,80 @@ using UnityEngine;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Serializable data class representing a connection between a source pass slot
-    /// and a target pass slot. Used to wire up data flow between passes in a pipeline
-    /// configuration.
+    /// 描述源 pass slot 与目标 pass slot 之间连接的可序列化数据类。
+    /// 用于在管线配置中把不同 pass 之间的数据流接起来。
     /// </summary>
     [Serializable]
     public class SlotConnection
     {
         [SerializeField]
-        private string m_SourcePass;
+        private string sourcePass;
 
         [SerializeField]
-        private string m_SourceSlot;
+        private string sourceSlot;
 
         [SerializeField]
-        private string m_TargetPass;
+        private string targetPass;
 
         [SerializeField]
-        private string m_TargetSlot;
+        private string targetSlot;
 
         /// <summary>
-        /// The instance name of the source pass.
-        /// Must not be <c>null</c> or empty.
+        /// 源 pass 的实例名。不能为 <c>null</c> 或空。
         /// </summary>
         public string SourcePass
         {
-            get => m_SourcePass;
-            set => m_SourcePass = value;
+            get => sourcePass;
+            set => sourcePass = value;
         }
 
         /// <summary>
-        /// The name of the output slot on the source pass.
-        /// Must not be <c>null</c> or empty.
+        /// 源 pass 上的输出 slot 名。不能为 <c>null</c> 或空。
         /// </summary>
         public string SourceSlot
         {
-            get => m_SourceSlot;
-            set => m_SourceSlot = value;
+            get => sourceSlot;
+            set => sourceSlot = value;
         }
 
         /// <summary>
-        /// The instance name of the target pass.
-        /// Must not be <c>null</c> or empty.
+        /// 目标 pass 的实例名。不能为 <c>null</c> 或空。
         /// </summary>
         public string TargetPass
         {
-            get => m_TargetPass;
-            set => m_TargetPass = value;
+            get => targetPass;
+            set => targetPass = value;
         }
 
         /// <summary>
-        /// The name of the input slot on the target pass.
-        /// Must not be <c>null</c> or empty.
+        /// 目标 pass 上的输入 slot 名。不能为 <c>null</c> 或空。
         /// </summary>
         public string TargetSlot
         {
-            get => m_TargetSlot;
-            set => m_TargetSlot = value;
+            get => targetSlot;
+            set => targetSlot = value;
         }
 
         /// <summary>
-        /// Validates that all name fields are non-null and non-empty.
+        /// 校验所有名字字段均非 null 且非空。
         /// </summary>
-        /// <returns><c>true</c> if all fields are valid; otherwise, <c>false</c>.</returns>
+        /// <returns>全部字段有效时返回 <c>true</c>；否则返回 <c>false</c>。</returns>
         public bool IsValid()
         {
-            return !string.IsNullOrEmpty(m_SourcePass)
-                && !string.IsNullOrEmpty(m_SourceSlot)
-                && !string.IsNullOrEmpty(m_TargetPass)
-                && !string.IsNullOrEmpty(m_TargetSlot);
+            return !string.IsNullOrEmpty(sourcePass)
+                && !string.IsNullOrEmpty(sourceSlot)
+                && !string.IsNullOrEmpty(targetPass)
+                && !string.IsNullOrEmpty(targetSlot);
         }
 
         /// <summary>
-        /// Creates a new <see cref="SlotConnection"/> with the specified source and target.
+        /// 用指定的源与目标创建新的 <see cref="SlotConnection"/>。
         /// </summary>
-        /// <param name="sourcePass">The instance name of the source pass.</param>
-        /// <param name="sourceSlot">The name of the output slot on the source pass.</param>
-        /// <param name="targetPass">The instance name of the target pass.</param>
-        /// <param name="targetSlot">The name of the input slot on the target pass.</param>
-        /// <returns>A new <see cref="SlotConnection"/> instance.</returns>
+        /// <param name="sourcePass">源 pass 的实例名。</param>
+        /// <param name="sourceSlot">源 pass 上的输出 slot 名。</param>
+        /// <param name="targetPass">目标 pass 的实例名。</param>
+        /// <param name="targetSlot">目标 pass 上的输入 slot 名。</param>
+        /// <returns>新的 <see cref="SlotConnection"/> 实例。</returns>
         public static SlotConnection Create(
             string sourcePass,
             string sourceSlot,

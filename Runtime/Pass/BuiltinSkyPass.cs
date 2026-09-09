@@ -6,108 +6,73 @@ using System;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
-
 namespace HN.HNRP
 {
     /// <summary>
-    /// Renders the skybox into the color and depth targets.
-    /// New <see cref="Pass"/>-based replacement for the legacy
-    /// <see cref="BuiltinSkyPass"/> (<c>PassBase</c>).
+    /// 用 Unity 内置天空盒渲染 pass。
     /// </summary>
-    /// <remarks>
-    /// <para>Inputs (connected from upstream, e.g. <c>DrawObjectPass</c>):</para>
-    /// <list type="bullet">
-    ///   <item><b>ColorTarget</b> — the color buffer into which the skybox is rendered.</item>
-    ///   <item><b>DepthTarget</b> — the depth buffer used for skybox depth writes.</item>
-    /// </list>
-    /// <para>
-    /// Uses the shared texture model: the color/depth targets are allocated by the
-    /// upstream chain head pass and this pass renders into the same buffers.
-    /// The render function calls <c>ctx.renderContext.CreateSkyboxRendererList</c>
-    /// followed by <c>ctx.cmd.DrawRendererList</c>, which renders the Unity skybox
-    /// material assigned to the active camera. This is the same logic as the
-    /// legacy <see cref="BuiltinSkyPass"/>.
-    /// </para>
-    /// <para>
-    /// <b>Outputs (pass-through for downstream chaining):</b>
-    /// </para>
-    /// <list type="bullet">
-    ///   <item><b>ColorTargetOutput</b> — pass-through of the input color target
-    ///   so downstream passes can connect without a separate resource node.</item>
-    ///   <item><b>DepthTargetOutput</b> — pass-through of the input depth target
-    ///   so downstream passes can connect without a separate resource node.</item>
-    /// </list>
-    /// </remarks>
     [Pass(PassNameConst)]
     public sealed class BuiltinSkyPass : Pass
     {
         /// <summary>
-        /// The constant pass name string used for registration and identification.
-        /// Matches the legacy <see cref="BuiltinSkyPass.PassName"/>.
+        /// 用于注册与识别的常量 pass 名。与旧 <see cref="BuiltinSkyPass.PassName"/> 一致。
         /// </summary>
         public const string PassNameConst = "Builtin Sky";
 
-        // ── Slots ──
+        // ── Slot ──
 
         /// <summary>
-        /// Gets the output color target slot.
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 颜色目标输入 slot。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetSlot { get; private set; }
+        public TextureSlot ColorTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output depth target slot.
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 深度目标输入 slot。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? DepthTargetSlot { get; private set; }
+        public TextureSlot DepthTargetSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output color target slot (pass-through of the input
-        /// <see cref="ColorTargetSlot"/> handle for downstream chaining).
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 颜色目标输出 slot（输入 <see cref="ColorTargetSlot"/> 句柄的透传，
+        /// 供下游 pass 链式连接）。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? ColorTargetOutputSlot { get; private set; }
+        public TextureSlot ColorTargetOutputSlot { get; private set; }
 
         /// <summary>
-        /// Gets the output depth target slot (pass-through of the input
-        /// <see cref="DepthTargetSlot"/> handle for downstream chaining).
-        /// Available after <see cref="SetupSlots"/> is called.
+        /// 深度目标输出 slot（输入 <see cref="DepthTargetSlot"/> 句柄的透传，
+        /// 供下游 pass 链式连接）。<see cref="SetupSlots"/> 调用后可用。
         /// </summary>
-        public TextureSlot? DepthTargetOutputSlot { get; private set; }
+        public TextureSlot DepthTargetOutputSlot { get; private set; }
 
-        // ── Camera context ──
+        // ── 相机上下文 ──
 
-        private CameraContext? cameraContext;
+        private CameraContext cameraContext;
 
-        // ── Constructor ──
+        // ── 构造函数 ──
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BuiltinSkyPass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// 初始化 <see cref="BuiltinSkyPass"/> 的新实例。
         /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// </remarks>
         public BuiltinSkyPass()
+            : base(string.Empty)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BuiltinSkyPass"/> class.
+        /// 初始化 <see cref="BuiltinSkyPass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public BuiltinSkyPass(string passName)
             : base(passName)
         {
         }
 
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            // No serialized parameters on this pass.
-        }
-
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -125,8 +90,8 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Stores the camera context so the skybox renderer list can be built
-        /// from <c>Camera</c> during <see cref="Record"/>.
+        /// 保存相机上下文，使 <see cref="Record"/> 期间能从 <c>Camera</c> 构建
+        /// 天空盒渲染器列表。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
@@ -135,31 +100,26 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Reads the upstream color and depth targets (shared texture model — allocated
-        /// by <c>DrawObjectPass</c>) and sets a render function that draws the
-        /// skybox using <c>ctx.renderContext.CreateSkyboxRendererList</c> — identical
-        /// logic to the legacy <see cref="BuiltinSkyPass.Record"/>.
+        /// 读取上游颜色与深度目标（共享纹理模型 —— 由 <c>DrawObjectPass</c> 分配），
+        /// 并设置一个用 <c>ctx.renderContext.CreateSkyboxRendererList</c> 绘制天空盒的
+        /// 渲染函数 —— 与旧 <see cref="BuiltinSkyPass.Record"/> 逻辑相同。
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
-            if (ColorTargetSlot == null || DepthTargetSlot == null)
+            if (ColorTargetSlot == null || DepthTargetSlot == null
+                || cameraContext == null
+                || !ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
             {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
-            if (cameraContext == null)
+            if (cameraContext.Camera == null
+                || cameraContext.Camera.clearFlags != CameraClearFlags.Skybox
+                || RenderSettings.skybox == null)
             {
-                IsEnabled &= false;
-            }
-
-            if (!ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
-            {
-                IsEnabled &= false;
-            }
-
-            if(cameraContext.Camera.clearFlags != CameraClearFlags.Skybox || RenderSettings.skybox == null)
-            {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
             using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
@@ -167,22 +127,21 @@ namespace HN.HNRP
 
             builder.AllowPassCulling(false);
 
-            // ── Input slots: use upstream color / depth targets (shared texture model) ──
+            // ── 输入 slot：使用上游颜色 / 深度目标（共享纹理模型）──
 
             TextureHandle colorTarget = ColorTargetSlot.ReadHandle();
             TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
 
-            // Guard against an invalid upstream chain (e.g. a frame where culling
-            // failed so the producer pass skipped recording). Skip this pass
-            // instead of binding an invalid handle, which would throw during
-            // render graph execution.
+            // 防护无效的上游链（如某帧裁剪失败使生产 pass 跳过记录）。
+            // 跳过本 pass，而不是绑定无效句柄（后者会在渲染图执行期抛错）。
             if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
-                IsEnabled &= false;
+                IsEnabled = false;
+                return;
             }
 
-            // Pass-through the input color / depth handles to the output slots so
-            // downstream passes can chain from this pass's outputs.
+            // 把输入颜色 / 深度句柄透传到输出 slot，
+            // 使下游 pass 能从本 pass 输出继续链式连接。
             if (ColorTargetOutputSlot != null)
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
@@ -196,13 +155,13 @@ namespace HN.HNRP
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
-            // ── Render function: draw skybox (same logic as legacy BuiltinSkyPass) ──
+            // ── 渲染函数：绘制天空盒（与旧 BuiltinSkyPass 相同逻辑）──
 
             passData.camera = cameraContext.Camera;
             builder.SetRenderFunc(
                 (BuiltinSkyPassData data, RenderGraphContext ctx) =>
                 {
-                    if(!IsEnabled)
+                    if (!IsEnabled)
                     {
                         return;
                     }
@@ -215,28 +174,28 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held by this pass.
+            // 本 pass 不持有可释放资源。
         }
 
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for <see cref="BuiltinSkyPass"/>.
+        /// <see cref="BuiltinSkyPass"/> 的渲染图 pass 数据容器。
         /// </summary>
         private sealed class BuiltinSkyPassData
         {
             /// <summary>
-            /// The color target texture handle.
+            /// 颜色目标纹理句柄。
             /// </summary>
             public TextureHandle colorTarget;
 
             /// <summary>
-            /// The depth target texture handle.
+            /// 深度目标纹理句柄。
             /// </summary>
             public TextureHandle depthTarget;
 
             /// <summary>
-            /// The camera whose skybox is rendered.
+            /// 渲染天空盒的相机。
             /// </summary>
             public Camera camera;
         }

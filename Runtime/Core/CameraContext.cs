@@ -5,96 +5,92 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Per-camera rendering context.
-    /// Wraps a <see cref="Camera"/> and <see cref="ScriptableRenderContext"/> with all
-    /// per-frame rendering state including culling results, command buffer, and lighting data.
-    /// Implements <see cref="System.IDisposable"/> — call <see cref="Dispose"/> when the
-    /// frame is complete to release pooled resources and native arrays.
+    /// 每相机渲染上下文。
+    /// 包装 <see cref="Camera"/> 与 <see cref="ScriptableRenderContext"/>，携带裁剪结果、
+    /// 命令缓冲、光照数据等全部每帧渲染状态。实现 <see cref="System.IDisposable"/>——
+    /// 帧结束时调用 <see cref="Dispose"/> 以释放池化资源与原生数组。
     /// </summary>
     public class CameraContext
     {
         /// <summary>
-        /// The camera being rendered this frame.
+        /// 本帧正在渲染的相机。
         /// </summary>
         public Camera Camera { get; set; }
 
         /// <summary>
-        /// The scriptable render context used to schedule and execute rendering commands.
+        /// 用于调度与执行渲染命令的 ScriptableRenderContext。
         /// </summary>
         public ScriptableRenderContext Context { get; set; }
 
         /// <summary>
-        /// Culling results produced by <c>context.Cull()</c> for the current frame.
-        /// Contains visible lights, reflection probes, and draw renderers.
-        /// Only valid when <see cref="HasCullingResults"/> is <c>true</c>.
+        /// 当前帧 <c>context.Cull()</c> 产生的裁剪结果，
+        /// 包含可见光、反射探针与待绘制渲染器。
+        /// 仅当 <see cref="HasCullingResults"/> 为 <c>true</c> 时有效。
         /// </summary>
         public CullingResults CullingResults { get; set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether camera culling succeeded this
-        /// frame. When <c>false</c>, <see cref="CullingResults"/> is
-        /// <c>default(CullingResults)</c> and must not be used to build
-        /// renderer lists (an invalid descriptor throws during render graph
-        /// compilation).
+        /// 获取或设置本帧相机裁剪是否成功。为 <c>false</c> 时
+        /// <see cref="CullingResults"/> 为 <c>default(CullingResults)</c>，
+        /// 不得用来构建渲染器列表（无效描述符会在渲染图编译期抛错）。
         /// </summary>
         public bool HasCullingResults { get; set; }
 
         /// <summary>
-        /// Command buffer for recording render commands.
-        /// Allocated from the pool via <see cref="CommandBufferPool.Get"/> during construction
-        /// and released back via <see cref="CommandBufferPool.Release"/> in <see cref="Dispose"/>.
+        /// 记录渲染命令的命令缓冲。构造时经 <see cref="CommandBufferPool.Get"/>
+        /// 从池中分配，<see cref="Dispose"/> 中经 <see cref="CommandBufferPool.Release"/>
+        /// 归还。
         /// </summary>
         public CommandBuffer Cmd { get; private set; }
 
         /// <summary>
-        /// Gets or sets a value indicating whether the output should be vertically flipped.
+        /// 获取或设置输出是否垂直翻转。
         /// </summary>
         public bool Flip { get; set; }
 
+        /// <summary>
+        /// 自定义渲染目标的面（cubemap 渲染用）。未知时为 <see cref="CubemapFace.Unknown"/>。
+        /// </summary>
         public CubemapFace TargetFace { get; set; } = CubemapFace.Unknown;
 
+        /// <summary>
+        /// 自定义渲染目标的目标深度切片。
+        /// </summary>
         public int TargetDepthSlice { get; set; } = -1;
 
         /// <summary>
-        /// The RTHandle wrapping the custom target texture when <see cref="Flip"/> is <c>true</c>.
+        /// 包装自定义目标纹理的 RTHandle。
         /// </summary>
         public RTHandle CustomTargetRTHandle { get; set; }
 
         /// <summary>
-        /// Visible lights obtained from <see cref="CullingResults"/>.
-        /// This is a native array that must be disposed via <see cref="Dispose"/>.
+        /// 从 <see cref="CullingResults"/> 得到的可见光。该原生数组
+        /// 必须经 <see cref="Dispose"/> 释放。
         /// </summary>
         public NativeArray<VisibleLight> VisibleLights { get; set; }
 
         /// <summary>
-        /// Visible reflection probes obtained from <see cref="CullingResults"/>.
-        /// This is a native array that must be disposed via <see cref="Dispose"/>.
+        /// 从 <see cref="CullingResults"/> 得到的可见反射探针。该原生数组
+        /// 必须经 <see cref="Dispose"/> 释放。
         /// </summary>
         public NativeArray<VisibleReflectionProbe> VisibleReflectionProbes { get; set; }
 
         /// <summary>
-        /// Cached reflection probes that need rendering this frame.
-        /// Managed array allocated and released outside the context lifecycle.
-        /// </summary>
-        public VisibleReflectionProbe[] CatchedReflectionProbes { get; set; }
-
-        /// <summary>
-        /// Shared runtime resources (shaders, textures, compute buffers) used across the pipeline.
+        /// 管线共享的运行时资源（shader、纹理、compute buffer）。
         /// </summary>
         public HNRenderPipelineRuntimeResources RuntimeResources { get; set; }
 
         /// <summary>
-        /// Global shader constant buffer populated each frame with time, camera,
-        /// and lighting parameters.
+        /// 每帧填充时间、相机与光照参数的全局 shader 常量缓冲。
         /// </summary>
         public GlobalConstantBuffer ConstantBuffer { get; set; }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="CameraContext"/> class.
-        /// Allocates a command buffer from the pool named <c>"CameraContext"</c>.
+        /// 初始化 <see cref="CameraContext"/> 的新实例。
+        /// 从池中分配名为 <c>"CameraContext"</c> 的命令缓冲。
         /// </summary>
-        /// <param name="camera">The camera to render this frame.</param>
-        /// <param name="context">The scriptable render context for the current frame.</param>
+        /// <param name="camera">本帧要渲染的相机。</param>
+        /// <param name="context">当前帧的 ScriptableRenderContext。</param>
         public CameraContext(Camera camera, ScriptableRenderContext context)
         {
             Camera = camera;
@@ -103,8 +99,7 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// Releases the pooled command buffer and disposes native arrays.
-        /// Safe to call multiple times — subsequent calls are no-ops.
+        /// 释放池化命令缓冲与原生数组。可多次调用——后续调用为空操作。
         /// </summary>
         public void Dispose()
         {
@@ -124,10 +119,9 @@ namespace HN.HNRP
                 VisibleReflectionProbes.Dispose();
             }
 
-            // CustomTargetRTHandle is intentionally NOT released here: the render
-            // graph commands are submitted to the GPU after this Dispose (in
-            // HNRenderPipeline.Render), so the handle must outlive the frame.
-            // The owning RealtimeProbeRenderer releases it after context.Submit().
+            // 有意不在此释放 CustomTargetRTHandle：渲染图命令在 Dispose 之后
+            // （HNRenderPipeline.Render 内）才提交 GPU，句柄须跨帧存活；
+            // 由拥有者 RealtimeProbeRenderer 在 context.Submit() 后释放。
         }
     }
 }

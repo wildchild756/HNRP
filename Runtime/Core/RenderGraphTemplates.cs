@@ -10,7 +10,9 @@ using UnityEngine.Experimental.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// 渲染图模板注册表。未来扩展新模板：在此文件新增一个静态模板实例 + 对应填充方法即可，
+    /// 渲染图模板注册表。每个模板以<b>代码</b>定义渲染图蓝图（pass 构造代码 +
+    /// 连线 + settings），运行时与编辑器共用同一份构造代码。未来扩展新模板：
+    /// 新增 <see cref="RenderGraphKind"/> 枚举值 + 本文件新增一个静态模板实例即可，
     /// 无需改动 <see cref="RenderGraphAsset"/>。
     /// </summary>
     /// <remarks>
@@ -21,27 +23,46 @@ namespace HN.HNRP
     {
         /// <summary>标准渲染图模板（8 pass / 18 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Standard = new RenderGraphTemplate(
+            RenderGraphKind.Standard,
             "StandardGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/StandardGraph.asset",
             "RenderGraphs/StandardGraph",
-            PopulateStandardGraph);
+            CreateStandardGraph);
 
         /// <summary> 反射渲染图模板（7 pass / 11 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Reflection = new RenderGraphTemplate(
+            RenderGraphKind.Reflection,
             "ReflectionGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/ReflectionGraph.asset",
             "RenderGraphs/ReflectionGraph",
-            PopulateReflectionGraph);
+            CreateReflectionGraph);
 
-        /// <summary>预览渲染图模板（2 pass / 1 slot，PerVertex+无HDR）。</summary>
+        /// <summary>预览渲染图模板（2 pass / 1 slot，PerPixel+HDR）。</summary>
         public static readonly RenderGraphTemplate Preview = new RenderGraphTemplate(
+            RenderGraphKind.Preview,
             "PreviewGraph",
             HNRenderPipelineGlobalSettings.HNRenderPipelinePath + "Runtime/Resources/RenderGraphs/PreviewGraph.asset",
             "RenderGraphs/PreviewGraph",
-            PopulatePreviewGraph);
+            CreatePreviewGraph);
 
-        // 未来扩展示例：
-        // public static readonly RenderGraphTemplate Xxx = new RenderGraphTemplate(...);
+        /// <summary>kind → 模板实例 映射，供 <see cref="RenderGraphAsset"/> 按标识定位构建代码。</summary>
+        private static readonly Dictionary<RenderGraphKind, RenderGraphTemplate> templatesByKind = new()
+        {
+            { RenderGraphKind.Standard, Standard },
+            { RenderGraphKind.Reflection, Reflection },
+            { RenderGraphKind.Preview, Preview },
+        };
+
+        /// <summary>
+        /// 按模板标识取回模板实例；未注册或 <see cref="RenderGraphKind.None"/> 时返回 <c>null</c>。
+        /// </summary>
+        /// <param name="kind">模板标识。</param>
+        /// <returns>对应的 <see cref="RenderGraphTemplate"/>，未注册时为 <c>null</c>。</returns>
+        public static RenderGraphTemplate Get(RenderGraphKind kind)
+        {
+            templatesByKind.TryGetValue(kind, out RenderGraphTemplate template);
+            return template;
+        }
 
         /// <summary>确保所有模板资源存在（Editor 下创建，非 Editor 下 Resources.Load）。</summary>
         public static void EnsureAll()
@@ -51,9 +72,9 @@ namespace HN.HNRP
             Preview.Ensure();
         }
 
-        private static void PopulateStandardGraph(RenderGraphAsset g)
+        private static RenderGraphBlueprint CreateStandardGraph()
         {
-            g.SetDefinition(
+            return new RenderGraphBlueprint(
                 new List<Pass>
                 {
                     new BuildLightDataPass("buildLight"),
@@ -93,17 +114,16 @@ namespace HN.HNRP
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "forwardOpaque", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "forwardOpaque", "ProbeDatas"),
                 },
-                new RenderGraphSettings 
-                { 
-                    SHEvalMode = SHEvalMode.PerPixel, 
+                new RenderGraphSettings
+                {
+                    SHEvalMode = SHEvalMode.PerPixel,
                     AllowHDR = true,
-                }
-            );
+                });
         }
 
-        private static void PopulateReflectionGraph(RenderGraphAsset g)
+        private static RenderGraphBlueprint CreateReflectionGraph()
         {
-            g.SetDefinition(
+            return new RenderGraphBlueprint(
                 new List<Pass>
                 {
                     new BuildLightDataPass("buildLight"),
@@ -135,17 +155,16 @@ namespace HN.HNRP
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),
                 },
-                new RenderGraphSettings 
-                { 
-                    SHEvalMode = SHEvalMode.PerPixel, 
+                new RenderGraphSettings
+                {
+                    SHEvalMode = SHEvalMode.PerPixel,
                     AllowHDR = true,
-                }
-            );
+                });
         }
 
-        private static void PopulatePreviewGraph(RenderGraphAsset g)
+        private static RenderGraphBlueprint CreatePreviewGraph()
         {
-            g.SetDefinition(
+            return new RenderGraphBlueprint(
                 new List<Pass>
                 {
                     new DrawObjectPass("opaque"),
@@ -155,12 +174,11 @@ namespace HN.HNRP
                 {
                     SlotConnection.Create("opaque", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                 },
-                new RenderGraphSettings 
-                { 
-                    SHEvalMode = SHEvalMode.PerPixel, 
+                new RenderGraphSettings
+                {
+                    SHEvalMode = SHEvalMode.PerPixel,
                     AllowHDR = true,
-                }
-            );
+                });
         }
     }
 }

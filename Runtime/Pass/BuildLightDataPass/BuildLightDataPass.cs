@@ -14,82 +14,57 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Builds a GPU-resident light data buffer from the visible light list each frame.
-    /// Uses a Burst-compiled <see cref="BuildLightDataJob"/> to convert
-    /// <see cref="VisibleLight"/> entries into packed <see cref="LightData"/> structs,
-    /// then uploads them to a compute buffer for downstream compute-shader passes.
+    /// 构建光照数据：把可见光打包进计算缓冲，供前向/簇剔除等 pass 消费。
     /// </summary>
-    /// <remarks>
-    /// <para><b>New Pass system</b> (ADR-002, ADR-011):
-    /// Inherits from <see cref="Pass"/> instead of the legacy <see cref="PassBase"/>.
-    /// Uses a name-based <see cref="ComputeBufferSlot"/> output for downstream
-    /// connections instead of index-based slot registration.
-    /// </para>
-    /// <para>
-    /// The buffer capacity is bounded by
-    /// <see cref="HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN"/> +
-    /// <see cref="HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN"/>.
-    /// The compute shaders used by downstream passes (e.g. cluster culling) are
-    /// accessed via <see cref="CameraContext.RuntimeResources"/>.
-    /// </para>
-    /// </remarks>
     [Pass(PassNameConst)]
     public sealed class BuildLightDataPass : Pass
     {
         /// <summary>
-        /// The constant pass name string used for registration and identification.
-        /// Matches the legacy <see cref="BuildLightDataPass.PassName"/>.
+        /// 用于注册与识别的常量 pass 名。与旧 <see cref="BuildLightDataPass.PassName"/> 一致。
         /// </summary>
         public const string PassNameConst = "Build Light Data";
 
-        // ── Slots ──
+        // ── Slot ──
 
-        /// <summary>
-        /// Gets the output compute buffer slot that holds the created light data
-        /// buffer handle. Downstream passes connect their light data input slots
-        /// to this output to receive the populated light data buffer.
-        /// </summary>
+        /// <summary>光照数据计算缓冲输出 slot。</summary>
         public ComputeBufferSlot LightDatasBufferSlot { get; private set; }
 
-        // ── Per-frame state ──
+        // ── 每帧状态 ──
 
-        private CameraContext? m_Context;
-        private NativeArray<VisibleLight> m_VisibleLights;
-        private int m_LightCount;
-        private int m_MaxLightCount;
+        private CameraContext cameraContext;
+        private NativeArray<VisibleLight> visibleLights;
+        private int lightCount;
+        private int maxLightCount; 
 
-        private BuildLightDataJob m_Job;
-        private NativeArray<LightData> m_LightDatas;
+        private BuildLightDataJob job;
+        private NativeArray<LightData> lightDatas;
 
-        // ── Constructor ──
+        // ── 构造函数 ──
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BuildLightDataPass"/> class.
-        /// Parameterless constructor used by Unity serialization
-        /// (<c>[SerializeReference]</c> deserialization) and preset templates.
+        /// 初始化 <see cref="BuildLightDataPass"/> 的新实例。
         /// </summary>
+        /// <remarks>
+        /// 无参构造仅供 <see cref="RenderGraphAsset"/> 上参数缓存 Pass 的
+        /// <c>[SerializeReference]</c> 反序列化使用；实例名随后由序列化数据填充。
+        /// </remarks>
         public BuildLightDataPass()
+            : base(string.Empty)
         {
         }
 
         /// <summary>
-        /// Initializes a new instance of the <see cref="BuildLightDataPass"/> class.
+        /// 初始化 <see cref="BuildLightDataPass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
-        /// The instance name of this pass. Must be non-null and unique within the render graph.
+        /// 本 pass 的实例名。必须非 null 且在渲染图内唯一。
         /// </param>
         public BuildLightDataPass(string passName)
             : base(passName)
         {
         }
 
-        /// <inheritdoc />
-        public override void CopyFrom(Pass source)
-        {
-            // No serialized parameters on this pass.
-        }
-
-        // ── Lifecycle ──
+        // ── 生命周期 ──
 
         /// <inheritdoc />
         public override void SetupSlots()
@@ -100,26 +75,23 @@ namespace HN.HNRP
 
         /// <inheritdoc />
         /// <remarks>
-        /// Captures the camera-specific rendering context to access per-frame
-        /// visible light data from <see cref="CameraContext.VisibleLights"/>.
-        /// The maximum light count is derived from the pipeline asset constants
-        /// at initialization time.
+        /// 捕获相机专属渲染上下文，以访问 <see cref="CameraContext.VisibleLights"/>
+        /// 的每帧可见光数据。最大光源数在初始化期由管线资产常量推导。
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
-            m_Context = context;
-            m_VisibleLights = context.VisibleLights;
-            m_MaxLightCount = HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
+            cameraContext = context;
+            visibleLights = context.VisibleLights;
+            maxLightCount = HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
                             + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
-            m_LightCount = math.min(m_VisibleLights.Length, m_MaxLightCount);
+            lightCount = math.min(visibleLights.Length, maxLightCount);
         }
 
         /// <inheritdoc />
         /// <remarks>
-        /// Creates a transient compute buffer sized for the maximum light count,
-        /// schedules a parallel <see cref="BuildLightDataJob"/> to pack visible
-        /// lights into <see cref="LightData"/> structs, and records a render
-        /// function that uploads the completed job output to the GPU buffer.
+        /// 创建按最大光源数尺寸的瞬时计算缓冲，调度并行 <see cref="BuildLightDataJob"/>
+        /// 把可见光打包进 <see cref="LightData"/> 结构体，并记录一个把完成的 job
+        /// 输出上传到 GPU 缓冲的渲染函数。
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
@@ -130,39 +102,37 @@ namespace HN.HNRP
 
                 ComputeBufferHandle lightDatasBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
-                        m_MaxLightCount,
+                        maxLightCount,
                         UnsafeUtility.SizeOf<LightData>())
                     { name = "Light Datas Buffer" });
 
                 passData.lightDatasBuffer = builder.WriteComputeBuffer(lightDatasBuffer);
 
-                // Publish the real render graph handle so downstream
-                // passes can read it via ReadHandle().
+                // 发布真实渲染图句柄，使下游 pass 能经 ReadHandle() 读取。
                 LightDatasBufferSlot.SetHandle(lightDatasBuffer);
 
-                m_LightDatas = new NativeArray<LightData>(m_LightCount, Allocator.TempJob);
+                lightDatas = new NativeArray<LightData>(lightCount, Allocator.TempJob);
 
-                m_Job = new BuildLightDataJob
+                job = new BuildLightDataJob
                 {
-                    visibleLights = m_VisibleLights,
-                    lightDatas = m_LightDatas,
+                    visibleLights = visibleLights,
+                    lightDatas = lightDatas,
                 };
 
-                var jobHandle = m_Job.ScheduleParallel(m_LightCount, 1, new JobHandle());
+                var jobHandle = job.ScheduleParallel(lightCount, 1, new JobHandle());
 
-                // Store per-frame values on the pooled pass data so the render
-                // function closure only captures `this` (zero allocation).
+                // 把每帧值存到池化 pass 数据上，使渲染函数闭包只捕获 `this`（零分配）。
                 passData.jobHandle = jobHandle;
-                passData.lightDatas = m_LightDatas;
+                passData.lightDatas = lightDatas;
 
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        if(!IsEnabled)
+                        if (!IsEnabled)
                         {
                             return;
                         }
-                        
+
                         data.jobHandle.Complete();
                         ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
                         data.lightDatas.Dispose();
@@ -173,34 +143,30 @@ namespace HN.HNRP
         /// <inheritdoc />
         public override void Cleanup()
         {
-            // No disposable resources held beyond per-frame transient allocations
-            // that are disposed inside the render function.
+            // 除渲染函数内释放的每帧瞬时分配外，不持有其他可释放资源。
         }
 
         // ── Pass data ──
 
         /// <summary>
-        /// Render graph pass data container for <see cref="BuildLightDataPass"/>.
-        /// Holds the compute buffer handle populated by
-        /// <c>builder.WriteComputeBuffer</c>.
+        /// <see cref="BuildLightDataPass"/> 的渲染图 pass 数据容器。
+        /// 持有由 <c>builder.WriteComputeBuffer</c> 填充的计算缓冲句柄。
         /// </summary>
         private class BuildLightDataPassData
         {
             /// <summary>
-            /// The light data compute buffer handle.
-            /// Populated by <c>builder.WriteComputeBuffer</c> during
-            /// <see cref="Record"/>.
+            /// 光照数据计算缓冲句柄。在 <see cref="Record"/> 中由
+            /// <c>builder.WriteComputeBuffer</c> 填充。
             /// </summary>
             public ComputeBufferHandle lightDatasBuffer;
 
             /// <summary>
-            /// The job handle to complete before uploading the packed light data.
+            /// 上传打包光照数据前需完成的 job 句柄。
             /// </summary>
             public JobHandle jobHandle;
 
             /// <summary>
-            /// The packed light data array uploaded to the GPU and disposed inside
-            /// the render function.
+            /// 上传到 GPU 并在渲染函数内释放的打包光照数据数组。
             /// </summary>
             public NativeArray<LightData> lightDatas;
         }
@@ -208,13 +174,12 @@ namespace HN.HNRP
         // ── Property IDs ──
 
         /// <summary>
-        /// Shader property identifiers used by this pass and its consumers.
+        /// 本 pass 与其消费方使用的 shader 属性标识。
         /// </summary>
         public static class PropertyIDs
         {
             /// <summary>
-            /// Global shader property ID for the light data structured buffer.
-            /// Value: <c>_LightDatasBuffer</c>.
+            /// 光照数据结构化缓冲的全局 shader 属性 ID。值：<c>_LightDatasBuffer</c>。
             /// </summary>
             public static readonly int LightDatasBuffer = Shader.PropertyToID("_LightDatasBuffer");
         }

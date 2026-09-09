@@ -12,61 +12,11 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 3d6c020a9315464a88abf2dc506a57a3, type: 3}
   m_Name: PreviewGraph
   m_EditorClassIdentifier: 
-  m_Passes:
-  - rid: 6885483949488603176
-  - rid: 6885483949488603177
-  m_Connections:
-  - m_SourcePass: opaque
-    m_SourceSlot: ColorTargetOutput
-    m_TargetPass: finalBlit
-    m_TargetSlot: ColorTarget
-  m_Settings:
+  kind: 3
+  settings:
     SHEvalMode: 2
     AllowHDR: 1
+  passParameterCache: []
   references:
     version: 2
-    RefIds:
-    - rid: 6885483949488603176
-      type: {class: DrawObjectPass, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        m_PassName: opaque
-        m_IsEnabled: 1
-        colorTargetParams:
-          ColorFormat: 0
-          DepthBits: 0
-          Slices: 0
-          TextureScale: {x: 0, y: 0}
-          Width: 0
-          Height: 0
-          FilterMode: 0
-          WrapMode: 0
-          TextureDimension: 0
-          UseMipMap: 0
-          AutoGenerateMips: 0
-          ClearBuffer: 0
-          ClearColor: {r: 0, g: 0, b: 0, a: 0}
-        depthTargetParams:
-          ColorFormat: 0
-          DepthBits: 0
-          Slices: 0
-          TextureScale: {x: 0, y: 0}
-          Width: 0
-          Height: 0
-          FilterMode: 0
-          WrapMode: 0
-          TextureDimension: 0
-          UseMipMap: 0
-          AutoGenerateMips: 0
-          ClearBuffer: 0
-          ClearColor: {r: 0, g: 0, b: 0, a: 0}
-        rendererListParams:
-          ListKind: 0
-          RenderingLayerMask: 1
-        setLightGlobals: 1
-        receiveShadow: 1
-    - rid: 6885483949488603177
-      type: {class: RenderOutputPass, ns: HN.HNRP, asm: HN.HNRP}
-      data:
-        m_PassName: finalBlit
-        m_IsEnabled: 1
-        m_Flip: 0
+    RefIds: []

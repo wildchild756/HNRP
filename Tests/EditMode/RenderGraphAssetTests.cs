@@ -13,37 +13,30 @@ using Object = UnityEngine.Object;
 namespace HN.HNRP.Tests
 {
     /// <summary>
-    /// Tests for <see cref="RenderGraphAsset"/> in <c>Runtime/Config/RenderGraphAsset.cs</c>.
-    /// Verifies Build() pass instantiation, slot-connection name resolution,
-    /// and enabled-pass filtering.
+    /// 渲染图构建管线测试：<see cref="RenderGraphBuilder"/> 消费
+    /// <see cref="RenderGraphBlueprint"/>（运行时/编辑器共享的模板构建产物，
+    /// 方案 X）并产出可执行的 pass 列表。验证槽连接的名称解析
+    /// 与启用 pass 过滤。
     /// </summary>
     public sealed class RenderGraphAssetTests
     {
-        #region Test Pass Subclasses
+        #region 测试用 Pass 子类
 
         /// <summary>
-        /// Minimal pass used for build tests. Registered as <c>"TestPassA"</c>.
+        /// 构建测试使用的最小 pass。注册为 <c>"TestPassA"</c>。
         /// </summary>
         [Pass("TestPassA")]
         private sealed class TestPassA : Pass
         {
             /// <summary>
-            /// Initializes a new instance with the given name.
+            /// 以给定名称初始化新实例。
             /// </summary>
-            /// <param name="name">The pass instance name.</param>
+            /// <param name="name">pass 实例名。</param>
             public TestPassA(string name)
                 : base(name)
             {
             }
 
-            /// <summary>
-            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
-            /// runtime cloning.
-            /// </summary>
-            public TestPassA()
-            {
-            }
-
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -58,33 +51,20 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
-
-            /// <inheritdoc />
-            public override void CopyFrom(Pass source)
-            {
-            }
         }
 
         /// <summary>
-        /// Minimal pass used for build tests. Registered as <c>"TestPassB"</c>.
+        /// 构建测试使用的最小 pass。注册为 <c>"TestPassB"</c>。
         /// </summary>
         [Pass("TestPassB")]
         private sealed class TestPassB : Pass
         {
             /// <summary>
-            /// Initializes a new instance with the given name.
+            /// 以给定名称初始化新实例。
             /// </summary>
-            /// <param name="name">The pass instance name.</param>
+            /// <param name="name">pass 实例名。</param>
             public TestPassB(string name)
                 : base(name)
-            {
-            }
-
-            /// <summary>
-            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
-            /// runtime cloning.
-            /// </summary>
-            public TestPassB()
             {
             }
 
@@ -102,40 +82,26 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
-
-            /// <inheritdoc />
-            public override void CopyFrom(Pass source)
-            {
-            }
         }
 
         /// <summary>
-        /// Pass that starts disabled. Registered as <c>"TestPassDisabled"</c>.
-        /// Used to verify that <see cref="RenderGraphAsset.Build"/> filters
-        /// out passes where <see cref="Pass.IsEnabled"/> is <c>false</c>.
+        /// 初始为禁用状态的 pass。注册为 <c>"TestPassDisabled"</c>。
+        /// 用于验证 <see cref="RenderGraphBuilder.Build"/> 过滤掉
+        /// <see cref="Pass.IsEnabled"/> 为 <c>false</c> 的 pass。
         /// </summary>
         [Pass("TestPassDisabled")]
         private sealed class TestPassDisabled : Pass
         {
             /// <summary>
-            /// Initializes a new instance that is disabled by default.
+            /// 初始化一个默认禁用的新实例。
             /// </summary>
-            /// <param name="name">The pass instance name.</param>
+            /// <param name="name">pass 实例名。</param>
             public TestPassDisabled(string name)
                 : base(name)
             {
                 IsEnabled = false;
             }
 
-            /// <summary>
-            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
-            /// runtime cloning.
-            /// </summary>
-            public TestPassDisabled()
-            {
-                IsEnabled = false;
-            }
-
             /// <inheritdoc />
             public override void SetupSlots()
             {
@@ -150,38 +116,26 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
-
-            /// <inheritdoc />
-            public override void CopyFrom(Pass source)
-            {
-            }
         }
 
         /// <summary>
-        /// Definition for <see cref="TestTextureConsumerPass"/>.
+        /// 带纹理输入槽的 pass，用于验证
+        /// <see cref="RenderGraphBuilder.Build"/> 的槽连接接线。
         /// </summary>
         [Pass("TestTextureConsumer")]
         private sealed class TestTextureConsumerPass : Pass
         {
             /// <summary>
-            /// Gets the registered texture input slot.
+            /// 获取已注册的纹理输入槽。
             /// </summary>
             public TextureSlot Input { get; private set; }
 
             /// <summary>
-            /// Initializes a new instance with the given name.
+            /// 以给定名称初始化新实例。
             /// </summary>
-            /// <param name="name">The pass instance name.</param>
+            /// <param name="name">pass 实例名。</param>
             public TestTextureConsumerPass(string name)
                 : base(name)
-            {
-            }
-
-            /// <summary>
-            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
-            /// runtime cloning.
-            /// </summary>
-            public TestTextureConsumerPass()
             {
             }
 
@@ -201,39 +155,26 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
-
-            /// <inheritdoc />
-            public override void CopyFrom(Pass source)
-            {
-            }
         }
 
         /// <summary>
-        /// Pass with an output slot used to verify slot-connection wiring
-        /// through <see cref="RenderGraphAsset.Build"/>.
+        /// 带输出槽的 pass，用于验证
+        /// <see cref="RenderGraphBuilder.Build"/> 的槽连接接线。
         /// </summary>
         [Pass("TestTextureProducer")]
         private sealed class TestTextureProducerPass : Pass
         {
             /// <summary>
-            /// Gets the registered texture output slot.
+            /// 获取已注册的纹理输出槽。
             /// </summary>
             public TextureSlot Output { get; private set; }
 
             /// <summary>
-            /// Initializes a new instance with the given name.
+            /// 以给定名称初始化新实例。
             /// </summary>
-            /// <param name="name">The pass instance name.</param>
+            /// <param name="name">pass 实例名。</param>
             public TestTextureProducerPass(string name)
                 : base(name)
-            {
-            }
-
-            /// <summary>
-            /// Parameterless constructor used by <see cref="RenderGraphAsset.Build"/>
-            /// runtime cloning.
-            /// </summary>
-            public TestTextureProducerPass()
             {
             }
 
@@ -253,19 +194,14 @@ namespace HN.HNRP.Tests
             public override void Record(RenderGraph renderGraph)
             {
             }
-
-            /// <inheritdoc />
-            public override void CopyFrom(Pass source)
-            {
-            }
         }
 
         #endregion
 
-        #region Setup
+        #region 初始化
 
         /// <summary>
-        /// Ensures <see cref="PassRegistry"/> is populated before each test.
+        /// 每个测试前确保 <see cref="PassRegistry"/> 已填充。
         /// </summary>
         [SetUp]
         public void SetUp()
@@ -275,21 +211,35 @@ namespace HN.HNRP.Tests
 
         #endregion
 
-        #region Build — Pass Instantiation
+        #region 辅助方法
+
+        private static List<Pass> Build(List<Pass> passes, List<SlotConnection> connections = null)
+        {
+            var blueprint = new RenderGraphBlueprint(
+                passes,
+                connections ?? new List<SlotConnection>(),
+                new RenderGraphSettings());
+            return RenderGraphBuilder.Build(blueprint);
+        }
+
+        #endregion
+
+        #region Build —— Pass 实例化
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> instantiates the correct number of
-        /// passes from <see cref="RenderGraphAsset.Passes"/> definitions, each with
-        /// the expected <see cref="Pass.PassName"/>.
+        /// <see cref="RenderGraphBuilder.Build"/> 直接使用蓝图中的 pass
+        /// （各自带预期的 <see cref="Pass.PassName"/> 与类型）。
         /// </summary>
         [Test]
         public void Build_InstantiatesPasses()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA("Alpha"));
-            asset.Passes.Add(new TestPassB("Beta"));
+            var passes = new List<Pass>
+            {
+                new TestPassA("Alpha"),
+                new TestPassB("Beta"),
+            };
 
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(passes);
 
             Assert.That(result, Is.Not.Null,
                 "Build should return a non-null list.");
@@ -297,93 +247,87 @@ namespace HN.HNRP.Tests
                 "Build should return exactly two passes for two definitions.");
 
             Assert.That(result[0].PassName, Is.EqualTo("Alpha"),
-                "First pass should have the PassName from its template.");
+                "First pass should keep the PassName from its blueprint.");
             Assert.That(result[0].GetType(), Is.EqualTo(typeof(TestPassA)),
                 "First pass should be of type TestPassA.");
             Assert.That(result[0].IsEnabled, Is.True,
-                "Newly created passes should be enabled by default.");
+                "Newly built passes should be enabled by default.");
 
             Assert.That(result[1].PassName, Is.EqualTo("Beta"),
-                "Second pass should have the PassName from its template.");
+                "Second pass should keep the PassName from its blueprint.");
             Assert.That(result[1].GetType(), Is.EqualTo(typeof(TestPassB)),
                 "Second pass should be of type TestPassB.");
             Assert.That(result[1].IsEnabled, Is.True,
-                "Newly created passes should be enabled by default.");
-
-            Object.DestroyImmediate(asset);
+                "Newly built passes should be enabled by default.");
         }
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> returns an empty list when
-        /// <see cref="RenderGraphAsset.Passes"/> is empty.
+        /// <see cref="RenderGraphBuilder.Build"/> 对空蓝图返回空列表。
         /// </summary>
         [Test]
-        public void Build_EmptyPassesList_ReturnsEmptyList()
+        public void Build_EmptyBlueprint_ReturnsEmptyList()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(new List<Pass>());
 
             Assert.That(result, Is.Not.Null,
-                "Build should return a non-null list even for empty definitions.");
+                "Build should return a non-null list even for an empty blueprint.");
             Assert.That(result.Count, Is.EqualTo(0),
-                "Build should return an empty list when no definitions exist.");
-
-            Object.DestroyImmediate(asset);
+                "Build should return an empty list when the blueprint has no passes.");
         }
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> skips definitions whose
-        /// <see cref="RenderGraphAsset.Build"/> skips passes whose
-        /// <see cref="Pass.PassName"/> is <c>null</c> or empty.
+        /// <see cref="RenderGraphBuilder.Build"/> 跳过 <see cref="Pass.PassName"/>
+        /// 为 <c>null</c> 或空字符串的 pass。
         /// </summary>
         [Test]
         public void Build_SkipsPassesWithNullPassName()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA(null));
-            asset.Passes.Add(new TestPassA(string.Empty));
-            asset.Passes.Add(new TestPassB("Valid"));
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(new List<Pass>
+            {
+                new TestPassA(null),
+                new TestPassA(string.Empty),
+                new TestPassB("Valid"),
+            });
 
             Assert.That(result.Count, Is.EqualTo(1),
                 "Build should skip passes with null/empty PassName.");
             Assert.That(result[0].PassName, Is.EqualTo("Valid"),
-                "Only the valid definition should be instantiated.");
-
-            Object.DestroyImmediate(asset);
+                "Only the valid definition should be built.");
         }
 
         #endregion
 
-        #region Build — Slot Connections by Name
+        #region Build —— 按名称槽连接
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> correctly resolves passes by name
-        /// when processing <see cref="SlotConnection"/> entries. All referenced
-        /// passes appear in the result regardless of connection validity.
+        /// <see cref="RenderGraphBuilder.Build"/> 处理
+        /// <see cref="SlotConnection"/> 条目时能正确按名称解析 pass。
+        /// 所有被引用的 pass 无论连接是否有效都出现在结果中。
         /// </summary>
         [Test]
         public void Build_ConnectsSlots_ByName()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA("SourcePass"));
-            asset.Passes.Add(new TestPassB("TargetPass"));
-            asset.Connections.Add(SlotConnection.Create(
-                sourcePass: "SourcePass",
-                sourceSlot: "ColorOutput",
-                targetPass: "TargetPass",
-                targetSlot: "ColorInput"));
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(
+                new List<Pass>
+                {
+                    new TestPassA("SourcePass"),
+                    new TestPassB("TargetPass"),
+                },
+                new List<SlotConnection>
+                {
+                    SlotConnection.Create(
+                        sourcePass: "SourcePass",
+                        sourceSlot: "ColorOutput",
+                        targetPass: "TargetPass",
+                        targetSlot: "ColorInput"),
+                });
 
             Assert.That(result, Is.Not.Null,
                 "Build should return a non-null list.");
             Assert.That(result.Count, Is.EqualTo(2),
-                "Both passes should be instantiated.");
+                "Both passes should be built.");
 
-            // Verify the correct pass instances exist by name.
+            // 按名称验证正确的 pass 实例存在。
             bool hasSource = result.Exists(p => p.PassName == "SourcePass");
             bool hasTarget = result.Exists(p => p.PassName == "TargetPass");
 
@@ -397,59 +341,59 @@ namespace HN.HNRP.Tests
             Assert.That(result.Find(p => p.PassName == "TargetPass").GetType(),
                 Is.EqualTo(typeof(TestPassB)),
                 "TargetPass should be TestPassB.");
-
-            Object.DestroyImmediate(asset);
         }
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> gracefully handles
-        /// <see cref="SlotConnection"/> entries where source or target pass
-        /// names do not match any instantiated pass.
+        /// <see cref="RenderGraphBuilder.Build"/> 优雅处理
+        /// <see cref="SlotConnection"/> 中源或目标 pass 名称不匹配
+        /// 任何已构建 pass 的情况。
         /// </summary>
         [Test]
         public void Build_HandlesMissingConnectionTarget_DoesNotThrow()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA("OnlyPass"));
-            asset.Connections.Add(SlotConnection.Create("OnlyPass", "Out", "GhostPass", "In"));
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(
+                new List<Pass>
+                {
+                    new TestPassA("OnlyPass"),
+                },
+                new List<SlotConnection>
+                {
+                    SlotConnection.Create("OnlyPass", "Out", "GhostPass", "In"),
+                });
 
             Assert.That(result, Is.Not.Null,
                 "Build should not throw when a connection references a non-existent pass.");
             Assert.That(result.Count, Is.EqualTo(1),
-                "The valid pass should still be instantiated.");
+                "The valid pass should still be built.");
             Assert.That(result[0].PassName, Is.EqualTo("OnlyPass"),
                 "The valid pass should be the only one returned.");
-
-            Object.DestroyImmediate(asset);
         }
 
         #endregion
 
-        #region Build — Enabled Pass Filtering
+        #region Build —— 启用 pass 过滤
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> returns only passes whose
-        /// <see cref="Pass.IsEnabled"/> is <c>true</c>. Passes that set
-        /// <c>IsEnabled = false</c> in their constructor are excluded.
+        /// <see cref="RenderGraphBuilder.Build"/> 只返回
+        /// <see cref="Pass.IsEnabled"/> 为 <c>true</c> 的 pass。
+        /// 构造函数中设置 <c>IsEnabled = false</c> 的 pass 被排除。
         /// </summary>
         [Test]
         public void Build_ReturnsEnabledPassesOnly()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestPassA("EnabledAlpha"));
-            asset.Passes.Add(new TestPassDisabled("DisabledPass"));
-            asset.Passes.Add(new TestPassB("EnabledBeta"));
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(new List<Pass>
+            {
+                new TestPassA("EnabledAlpha"),
+                new TestPassDisabled("DisabledPass"),
+                new TestPassB("EnabledBeta"),
+            });
 
             Assert.That(result, Is.Not.Null,
                 "Build should return a non-null list.");
             Assert.That(result.Count, Is.EqualTo(2),
                 "Build should exclude the disabled pass, returning only the two enabled ones.");
 
-            // Verify both enabled passes are present.
+            // 验证两个启用 pass 都存在。
             bool hasAlpha = result.Exists(p => p.PassName == "EnabledAlpha");
             bool hasBeta = result.Exists(p => p.PassName == "EnabledBeta");
             bool hasDisabled = result.Exists(p => p.PassName == "DisabledPass");
@@ -460,33 +404,35 @@ namespace HN.HNRP.Tests
                 "EnabledBeta should be in the result.");
             Assert.That(hasDisabled, Is.False,
                 "DisabledPass should NOT be in the result.");
-
-            Object.DestroyImmediate(asset);
         }
 
         #endregion
 
-        #region Build — Slot Connections & Topological Order
+        #region Build —— 槽连接与拓扑排序
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Build"/> wires an output slot of one pass
-        /// to an input slot of another through a <see cref="SlotConnection"/>,
-        /// making the target input slot connected so the consumer can read the
-        /// producer's handle during <see cref="Pass.Record"/>.
+        /// <see cref="RenderGraphBuilder.Build"/> 通过
+        /// <see cref="SlotConnection"/> 将某 pass 的输出槽接到另一 pass 的
+        /// 输入槽，使目标输入槽处于已连接状态，消费方可在
+        /// <see cref="Pass.Record"/> 中读取生产方的句柄。
         /// </summary>
         [Test]
         public void Build_SlotConnection_WiresOutputToInput()
         {
-            var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
-            asset.Passes.Add(new TestTextureProducerPass("Producer"));
-            asset.Passes.Add(new TestTextureConsumerPass("Consumer"));
-            asset.Connections.Add(SlotConnection.Create(
-                sourcePass: "Producer",
-                sourceSlot: "Out",
-                targetPass: "Consumer",
-                targetSlot: "In"));
-
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = Build(
+                new List<Pass>
+                {
+                    new TestTextureProducerPass("Producer"),
+                    new TestTextureConsumerPass("Consumer"),
+                },
+                new List<SlotConnection>
+                {
+                    SlotConnection.Create(
+                        sourcePass: "Producer",
+                        sourceSlot: "Out",
+                        targetPass: "Consumer",
+                        targetSlot: "In"),
+                });
 
             Assert.That(result.Count, Is.EqualTo(2),
                 "Both passes should be built and enabled.");
@@ -501,37 +447,36 @@ namespace HN.HNRP.Tests
             Assert.That(consumer.Input.HasHandle, Is.False,
                 "The consumer's input has no handle until the producer publishes one.");
 
-            // Publish a handle on the producer's output and verify the input
-            // slot reflects it (HasHandle becomes true, ReadHandle returns it).
+            // 在生产方输出上发布句柄并验证输入槽反映它
+            // （HasHandle 变为 true，ReadHandle 返回它）。
             producer!.Output.SetHandle(default(TextureHandle));
 
             Assert.That(consumer.Input.HasHandle, Is.False,
                 "A default (invalid) texture handle must be treated as no handle.");
-
-            Object.DestroyImmediate(asset);
         }
 
         #endregion
 
-        #region Settings
+        #region 设置
 
         /// <summary>
-        /// <see cref="RenderGraphAsset.Settings"/> can be read and written,
-        /// and the <see cref="RenderGraphSettings"/> struct fields are
-        /// independently mutable.
+        /// <see cref="RenderGraphAsset.Settings"/> 可读写，
+        /// <see cref="RenderGraphSettings"/> 结构体字段可独立修改。
         /// </summary>
         [Test]
         public void Settings_CanBeReadAndWritten()
         {
             var asset = ScriptableObject.CreateInstance<RenderGraphAsset>();
 
-            // Default state.
+            // 默认状态。
+            Assert.That(asset.Kind, Is.EqualTo(RenderGraphKind.None),
+                "A fresh RenderGraphAsset should not point at any template.");
             Assert.That(asset.Settings.SHEvalMode, Is.EqualTo(default(SHEvalMode)),
                 "Default SHEvalMode should be PerVertex (= 0).");
             Assert.That(asset.Settings.AllowHDR, Is.False,
                 "Default AllowHDR should be false.");
 
-            // Write new values.
+            // 写入新值。
             var newSettings = new RenderGraphSettings
             {
                 SHEvalMode = SHEvalMode.PerPixel,
@@ -543,6 +488,10 @@ namespace HN.HNRP.Tests
                 "SHEvalMode should reflect the written value.");
             Assert.That(asset.Settings.AllowHDR, Is.True,
                 "AllowHDR should reflect the written value.");
+
+            // 未配置资源的 Build 结果为空列表，绝不返回 null。
+            Assert.That(asset.Build(renderer: null), Is.Empty,
+                "Build on an asset without a template kind should return an empty list.");
 
             Object.DestroyImmediate(asset);
         }

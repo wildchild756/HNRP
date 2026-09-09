@@ -9,372 +9,250 @@ using UnityEngine;
 namespace HN.HNRP
 {
     /// <summary>
-    /// Spherical harmonics evaluation mode used by lighting passes.
+    /// 光照 pass 使用的球谐（SH）求值模式。
     /// </summary>
     public enum SHEvalMode
     {
         /// <summary>
-        /// Evaluate SH per-vertex.
+        /// 逐顶点求值球谐（SH）。
         /// </summary>
         PerVertex,
 
         /// <summary>
-        /// Mixed per-vertex and per-pixel SH evaluation.
+        /// 逐顶点与逐像素混合的球谐（SH）求值。
         /// </summary>
         Mixed,
 
         /// <summary>
-        /// Evaluate SH per-pixel.
+        /// 逐像素求值球谐（SH）。
         /// </summary>
         PerPixel,
     }
 
     /// <summary>
-    /// Serializable struct holding per-asset render graph settings.
-    /// Mirrors the top-level settings that influence how passes execute.
+    /// 可序列化结构体：每个资产级渲染图设置。
+    /// 对应影响 pass 执行方式的顶层设置。
     /// </summary>
     [Serializable]
     public struct RenderGraphSettings
     {
         /// <summary>
-        /// Spherical harmonics evaluation mode used by lighting passes.
+        /// 光照 pass 使用的球谐求值模式。
         /// </summary>
         public SHEvalMode SHEvalMode;
 
         /// <summary>
-        /// When <c>true</c>, the render graph may allocate HDR render targets.
-        /// When <c>false</c>, all targets are LDR.
+        /// 为 <c>true</c> 时渲染图可能分配 HDR 渲染目标；
+        /// 为 <c>false</c> 时全部目标为 LDR。
         /// </summary>
         public bool AllowHDR;
     }
 
     /// <summary>
-    /// Render graph template <see cref="ScriptableObject"/>.
-    /// Represents a static pipeline graph blueprint — defines which passes exist,
-    /// how their slots connect, and bundled render-graph-wide settings.
-    /// The runtime counterpart is <c>CameraRenderer.passes</c> (a
-    /// <see cref="List{Pass}"/> per camera).
+    /// 渲染图模板 <see cref="ScriptableObject"/>。
+    /// 指向某个 <see cref="RenderGraphKind"/>，其 <see cref="RenderGraphTemplate"/>
+    /// 构建代码是该图 pass 列表与连线的唯一数据源。资产本身只保存 kind 与
+    /// 渲染图级设置（运行时 pass 的 PreRecord 读取该设置）。
     /// </summary>
     /// <remarks>
     /// <para>
-    /// <b>Architecture note</b> (ADR-002, ADR-011):
-    /// <see cref="RenderGraphAsset"/> is a static template (ScriptableObject on disk);
-    /// <see cref="CameraRenderer"/> holds the runtime pass instances for each camera.
+    /// <b>架构说明</b>（ADR-002、ADR-011、方案 X）：资产是轻量模板标记——
+    /// 不再序列化 <see cref="Pass"/> 实例（已移除 <c>[SerializeReference]</c>）。
+    /// 编辑器（重新生成模板资产时）与运行时（<see cref="Build"/>）都执行同一份
+    /// 模板构建代码（<see cref="RenderGraphTemplate.CreateBlueprint"/>）来创建 pass，
+    /// 因此 pass 定义保持为纯 C# 类，无需无参构造或 <c>CopyFrom</c> 样板。
     /// </para>
     /// <para>
-    /// Cameras reference <see cref="RenderGraphAsset"/> directly — either through
-    /// <see cref="HNAdditionalCameraData.pipelineConfigOverride"/> or through the
-    /// default render graph fields on <see cref="HNRenderPipelineAsset"/>
-    /// (e.g. <c>DefaultGameRenderGraph</c>).
-    /// </para>
-    /// <para>
-    /// All rendering resources are owned by the passes themselves: a pass consumes
-    /// a connected input slot when available and allocates its own resource from
-    /// its parameters otherwise (ADR-017). There is no separate resource node
-    /// layer in the asset.
+    /// 相机直接引用 <see cref="RenderGraphAsset"/> —— 或通过
+    /// <see cref="HNAdditionalCameraData.pipelineConfigOverride"/>，
+    /// 或通过 <see cref="HNRenderPipelineAsset"/> 上的默认渲染图字段
+    /// （如 <c>DefaultGameRenderGraph</c>）。
     /// </para>
     /// </remarks>
     public class RenderGraphAsset : ScriptableObject
     {
-        [SerializeReference]
-        private List<Pass> m_Passes = new();
+        [SerializeField]
+        private RenderGraphKind kind;
 
         [SerializeField]
-        private List<SlotConnection> m_Connections = new();
-
-        [SerializeField]
-        private RenderGraphSettings m_Settings;
+        private RenderGraphSettings settings;
 
         /// <summary>
-        /// Gets the ordered list of pass templates in this graph.
-        /// Each element is a concrete <see cref="Pass"/> instance holding its own
-        /// serialized parameters.
+        /// 按 pass 实例名索引的参数缓存（L1 编辑器保存层）。
+        /// 与模板创建代码生成的运行时 pass 为<b>同类型</b>的另一个实例，仅承载
+        /// 参数值，不参与渲染；运行时 <see cref="Build"/> 把缓存值注入到模板
+        /// 代码创建的 pass 上（模板默认 → 编辑器保存值，逐级覆盖）。
+        /// 空缓存 = 使用模板代码默认参数。
         /// </summary>
-        public List<Pass> Passes => m_Passes;
+        [SerializeField, SerializeReference]
+        private List<Pass> passParameterCache = new();
 
         /// <summary>
-        /// Gets the ordered list of slot connections wiring passes together.
+        /// 获取本资产指向的模板标识。被序列化，使运行时（Resources.Load）
+        /// 能与编辑器解析到同一份构建代码。
         /// </summary>
-        public List<SlotConnection> Connections => m_Connections;
+        public RenderGraphKind Kind => kind;
 
         /// <summary>
-        /// Gets or sets the bundled render graph settings.
+        /// 获取或设置渲染图设置。
         /// </summary>
         public RenderGraphSettings Settings
         {
-            get => m_Settings;
-            set => m_Settings = value;
+            get => settings;
+            set => settings = value;
         }
 
         /// <summary>
-        /// 用模板定义覆盖本资源的全部序列化内容（passes/connections/settings）。
-        /// 由 <see cref="RenderGraphTemplates"/> 在创建/重置模板资源时调用。
+        /// 关联模板并写入模板级设置。由 <see cref="RenderGraphTemplate"/> 在创建 /
+        /// 重置模板资源时调用（蓝图 settings 来自同一份构建代码）。
         /// </summary>
-        /// <param name="passes">pass 模板列表。</param>
-        /// <param name="connections">slot 连接列表。</param>
-        /// <param name="settings">渲染图设置。</param>
-        public void SetDefinition(
-            List<Pass> passes,
-            List<SlotConnection> connections,
-            RenderGraphSettings settings)
+        /// <param name="templateKind">模板标识。</param>
+        /// <param name="templateSettings">模板蓝图设置。</param>
+        public void SetTemplate(RenderGraphKind templateKind, RenderGraphSettings templateSettings)
         {
-            m_Passes = passes;
-            m_Connections = connections;
-            m_Settings = settings;
+            kind = templateKind;
+            settings = templateSettings;
         }
 
         /// <summary>
-        /// Builds the runtime <see cref="Pass"/> list from this asset's pass templates.
-        /// Clones each template through <see cref="Pass.CreateRuntimeClone"/>,
-        /// wires up slots via <see cref="SlotConnection"/>,
-        /// and returns only passes whose <see cref="Pass.IsEnabled"/> is <c>true</c>.
+        /// 获取全部参数缓存 Pass（L1 编辑器保存层）。每项与模板 pass 同类型，
+        /// 通过 <see cref="Pass.PassName"/> 对应到模板代码创建的同名实例。
+        /// </summary>
+        public IReadOnlyList<Pass> PassParameterCache => passParameterCache;
+
+        /// <summary>
+        /// 按类型与实例名查找参数缓存；没有对应缓存时返回 <c>null</c>。
+        /// </summary>
+        /// <param name="passType">模板 pass 的具体类型。</param>
+        /// <param name="passName">模板 pass 的实例名。</param>
+        /// <returns>匹配的参数缓存 Pass，未找到时为 <c>null</c>。</returns>
+        public Pass GetParameterOverride(System.Type passType, string passName)
+        {
+            foreach (Pass cached in passParameterCache)
+            {
+                if (cached != null
+                    && cached.GetType() == passType
+                    && cached.PassName == passName)
+                {
+                    return cached;
+                }
+            }
+
+            return null;
+        }
+
+        /// <summary>
+        /// 是否已存在匹配类型与实例名的参数缓存。
+        /// </summary>
+        /// <param name="passType">模板 pass 的具体类型。</param>
+        /// <param name="passName">模板 pass 的实例名。</param>
+        /// <returns>存在时返回 <c>true</c>，否则 <c>false</c>。</returns>
+        public bool HasParameterOverride(System.Type passType, string passName)
+        {
+            return GetParameterOverride(passType, passName) != null;
+        }
+
+        /// <summary>
+        /// 添加（或替换同名同类型已有的）参数缓存条目。缓存承载与模板 pass
+        /// 相同的可序列化参数；<see cref="Build"/> 会把缓存值注入同名运行时 pass。
+        /// </summary>
+        /// <param name="parameterOverride">
+        /// 参数缓存 Pass 实例（与目标模板 pass 同类型、同实例名）。不能为 <c>null</c>。
+        /// </param>
+        /// <exception cref="System.ArgumentNullException">
+        /// 当 <paramref name="parameterOverride"/> 为 <c>null</c> 时抛出。
+        /// </exception>
+        public void AddParameterOverride(Pass parameterOverride)
+        {
+            if (parameterOverride == null)
+            {
+                throw new System.ArgumentNullException(nameof(parameterOverride));
+            }
+
+            RemoveParameterOverride(parameterOverride.GetType(), parameterOverride.PassName);
+            passParameterCache.Add(parameterOverride);
+        }
+
+        /// <summary>
+        /// 移除匹配类型与实例名的参数缓存条目（回到模板代码默认参数）。
+        /// </summary>
+        /// <param name="passType">模板 pass 的具体类型。</param>
+        /// <param name="passName">模板 pass 的实例名。</param>
+        /// <returns>存在并移除时返回 <c>true</c>，否则 <c>false</c>。</returns>
+        public bool RemoveParameterOverride(System.Type passType, string passName)
+        {
+            for (int i = 0; i < passParameterCache.Count; i++)
+            {
+                Pass cached = passParameterCache[i];
+                if (cached != null
+                    && cached.GetType() == passType
+                    && cached.PassName == passName)
+                {
+                    passParameterCache.RemoveAt(i);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 通过执行本资产对应模板的构建代码（与编辑器相同的代码）构建运行时
+        /// <see cref="Pass"/> 列表。每次调用都会产生全新的 pass 实例，并由
+        /// <see cref="RenderGraphBuilder"/> 完成声明、连线与排序；只返回启用 pass。
         /// </summary>
         /// <param name="renderer">
-        /// The camera renderer that will own the built passes.
+        /// 将拥有这些 pass 的相机渲染器（未使用；仅为与调用方保持 API 兼容）。
         /// </param>
         /// <returns>
-        /// A new <see cref="List{Pass}"/> containing all enabled passes,
-        /// or an empty list if no templates are configured.
+        /// 包含全部启用 pass 的新 <see cref="List{Pass}"/>；
+        /// 未配置模板标识时返回空列表。
         /// </returns>
         public List<Pass> Build(object renderer)
         {
-            var passMap = new Dictionary<string, Pass>();
-
-            // ── Phase 1: Clone runtime passes from templates ──
-            foreach (Pass template in m_Passes)
-            {
-                if (template == null)
-                {
-                    Debug.LogWarning("RenderGraphAsset.Build: Skipping null pass template.");
-                    continue;
-                }
-
-                if (string.IsNullOrEmpty(template.PassName))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Skipping pass template with null/empty PassName.");
-                    continue;
-                }
-
-                Pass pass = template.CreateRuntimeClone();
-                if (pass == null)
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Failed to clone pass template " +
-                        $"'{template.GetType().Name}' instance '{template.PassName}'.");
-                    continue;
-                }
-
-                // Declare the pass's slots once at build time so that Phase 2
-                // (ConnectPassSlots) wires up the same slot instances that Record
-                // will use each frame.
-                pass.SetupSlots();
-
-                passMap[template.PassName] = pass;
-            }
-
-            // ── Phase 2: Wire up slot connections ──
-            foreach (SlotConnection conn in m_Connections)
-            {
-                if (!conn.IsValid())
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: Skipping invalid SlotConnection " +
-                        $"(SourcePass='{conn.SourcePass}', SourceSlot='{conn.SourceSlot}', " +
-                        $"TargetPass='{conn.TargetPass}', TargetSlot='{conn.TargetSlot}').");
-                    continue;
-                }
-
-                if (!passMap.TryGetValue(conn.SourcePass, out Pass sourcePass))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: SlotConnection references unknown SourcePass " +
-                        $"'{conn.SourcePass}'.");
-                    continue;
-                }
-
-                if (!passMap.TryGetValue(conn.TargetPass, out Pass targetPass))
-                {
-                    Debug.LogWarning(
-                        $"RenderGraphAsset.Build: SlotConnection references unknown TargetPass " +
-                        $"'{conn.TargetPass}'.");
-                    continue;
-                }
-
-                ConnectPassSlots(sourcePass, conn.SourceSlot, targetPass, conn.TargetSlot);
-            }
-
-            // ── Phase 3: Topologically sort passes (dependency order) ──
-            return TopologicalSort(passMap);
-        }
-
-        /// <summary>
-        /// Topologically sorts all built passes so dependency edges are honored.
-        /// Returns only enabled passes.
-        /// </summary>
-        /// <param name="passMap">
-        /// Passes instantiated in <see cref="Build"/>, keyed by instance name.
-        /// </param>
-        /// <returns>
-        /// The enabled passes in a stable topological order (definition insertion
-        /// order as tie-breaker), or all enabled passes in definition order when a
-        /// cycle is detected.
-        /// </returns>
-        /// <remarks>
-        /// Dependencies come from <see cref="SlotConnection"/> edges: the source
-        /// pass (producer of an output slot) is ordered before the target pass
-        /// (consumer of the matching input slot).
-        /// </remarks>
-        private List<Pass> TopologicalSort(Dictionary<string, Pass> passMap)
-        {
-            // Stable base order: definition insertion order, restricted to passes
-            // that were actually built (passMap may omit failed instantiations).
-            var order = new List<Pass>(passMap.Count);
-            var index = new Dictionary<Pass, int>();
-            foreach (Pass template in m_Passes)
-            {
-                if (template == null || string.IsNullOrEmpty(template.PassName))
-                {
-                    continue;
-                }
-
-                if (passMap.TryGetValue(template.PassName, out Pass pass))
-                {
-                    index[pass] = order.Count;
-                    order.Add(pass);
-                }
-            }
-
-            int count = order.Count;
-            var adjacency = new Dictionary<int, HashSet<int>>();
-            var inDegree = new int[count];
-
-            // ── Build dependency edges from SlotConnection entries ──
-            foreach (SlotConnection conn in m_Connections)
-            {
-                if (!conn.IsValid())
-                {
-                    continue;
-                }
-
-                if (!passMap.TryGetValue(conn.SourcePass, out Pass source)
-                    || !passMap.TryGetValue(conn.TargetPass, out Pass target)
-                    || source == target)
-                {
-                    continue;
-                }
-
-                if (index.TryGetValue(source, out int sourceIndex)
-                    && index.TryGetValue(target, out int targetIndex))
-                {
-                    AddEdge(adjacency, inDegree, sourceIndex, targetIndex);
-                }
-            }
-
-            // ── Kahn's algorithm with stable (insertion-order) tie-breaking ──
-            var result = new List<Pass>(count);
-            var visited = new bool[count];
-            bool progressed = true;
-            while (progressed)
-            {
-                progressed = false;
-                for (int i = 0; i < count; i++)
-                {
-                    if (visited[i] || inDegree[i] != 0)
-                    {
-                        continue;
-                    }
-
-                    visited[i] = true;
-                    result.Add(order[i]);
-                    progressed = true;
-
-                    if (adjacency.TryGetValue(i, out HashSet<int> targets))
-                    {
-                        foreach (int target in targets)
-                        {
-                            if (!visited[target])
-                            {
-                                inDegree[target]--;
-                            }
-                        }
-                    }
-
-                    break;
-                }
-            }
-
-            // ── Cycle detection: append remaining nodes so nothing is dropped ──
-            if (result.Count < count)
+            RenderGraphTemplate template = RenderGraphTemplates.Get(kind);
+            if (template == null)
             {
                 Debug.LogWarning(
-                    $"RenderGraphAsset.TopologicalSort: cycle detected in render graph " +
-                    $"'{name}'. Appending remaining passes in definition order.");
-                for (int i = 0; i < count; i++)
-                {
-                    if (!visited[i])
-                    {
-                        result.Add(order[i]);
-                    }
-                }
+                    $"RenderGraphAsset.Build: '{name}' 没有匹配的 RenderGraphTemplate " +
+                    $"(kind='{kind}')，回退为空 pass 列表。");
+                return new List<Pass>();
             }
 
-            // ── Filter to enabled passes only ──
-            var enabled = new List<Pass>(result.Count);
-            foreach (Pass pass in result)
-            {
-                if (pass.IsEnabled)
-                {
-                    enabled.Add(pass);
-                }
-            }
+            RenderGraphBlueprint blueprint = template.CreateBlueprint();
+            List<Pass> passes = RenderGraphBuilder.Build(blueprint);
 
-            return enabled;
+            ApplyParameterOverrides(passes);
+            return passes;
         }
 
         /// <summary>
-        /// Adds a dependency edge from index <paramref name="from"/> to
-        /// <paramref name="to"/>, deduplicating parallel edges.
+        /// 把参数缓存（L1 编辑器保存层）注入构建出的运行时 pass：
+        /// 对每个 pass，存在同类型同名缓存时，把缓存参数拷到运行时实例上。
+        /// 无缓存时保留模板代码默认参数（L0）。运行时动态修改（L2）发生在
+        /// 本方法返回后的 pass 实例上，不写回本缓存。
         /// </summary>
-        private static void AddEdge(
-            Dictionary<int, HashSet<int>> adjacency,
-            int[] inDegree,
-            int from,
-            int to)
+        /// <param name="passes">模板代码构建出的运行时 pass 列表。</param>
+        private void ApplyParameterOverrides(List<Pass> passes)
         {
-            if (!adjacency.TryGetValue(from, out HashSet<int> targets))
+            if (passParameterCache == null || passParameterCache.Count == 0)
             {
-                targets = new HashSet<int>();
-                adjacency[from] = targets;
+                return;
             }
 
-            if (targets.Add(to))
+            foreach (Pass pass in passes)
             {
-                inDegree[to]++;
-            }
-        }
+                if (pass == null)
+                {
+                    continue;
+                }
 
-        /// <summary>
-        /// Wires an output slot of <paramref name="source"/> to an input slot of
-        /// <paramref name="target"/> by name.
-        /// </summary>
-        /// <param name="source">The source pass whose output slot is being connected.</param>
-        /// <param name="sourceSlot">The name of the output slot on the source pass.</param>
-        /// <param name="target">The target pass whose input slot is being connected.</param>
-        /// <param name="targetSlot">The name of the input slot on the target pass.</param>
-        /// <remarks>
-        /// Fails silently when directions don't match (e.g. legacy output→output
-        /// definitions) or when either named slot is missing. Successful connections
-        /// make the target input slot's <see cref="PassSlot.IsConnected"/> <c>true</c>
-        /// so the target pass reads the source's resource handle during <see cref="Pass.Record"/>.
-        /// </remarks>
-        private static void ConnectPassSlots(
-            Pass source,
-            string sourceSlot,
-            Pass target,
-            string targetSlot)
-        {
-            source.TryConnect(sourceSlot, target, targetSlot);
+                Pass cache = GetParameterOverride(pass.GetType(), pass.PassName);
+                if (cache != null)
+                {
+                    PassParameterCopy.CopyParameters(cache, pass);
+                }
+            }
         }
     }
 }

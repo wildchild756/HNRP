@@ -36,7 +36,7 @@ namespace HN.HNRP.Editor
 
         protected override void DrawGUI(MaterialEditor materialEditor, MaterialProperty[] properties)
         {
-            // Base Map
+            // 基础贴图
             DrawTextureAndColor(materialEditor, baseMapProperty, baseColorProperty, Styles.baseMap);
 
             // Alpha
@@ -46,7 +46,7 @@ namespace HN.HNRP.Editor
                 DrawMinMaxSlider(materialEditor, alphaRemapMinProperty, alphaRemapMaxProperty, 0.0f, 1.0f, Styles.alphaRemapping);
             }
 
-            // Smoothness Metallic
+            // 平滑度 / 金属度
             if (maskMapProperty == null || maskMapProperty.textureValue == null)
             {
                 DrawSlider(materialEditor, smoothnessProperty, Styles.smoothness);
@@ -55,10 +55,10 @@ namespace HN.HNRP.Editor
 
             EditorGUILayout.Space();
 
-            // Mask Map
+            // 掩码贴图
             DrawTexture(materialEditor, maskMapProperty, Styles.maskMap);
 
-            // SmoothnessRemap MetallicRemap AORemap
+            // SmoothnessRemap / MetallicRemap / AORemap
             if (maskMapProperty != null && maskMapProperty.textureValue != null)
             {
                 DrawMinMaxSlider(materialEditor, smoothnessRemapMinProperty, smoothnessRemapMaxProperty, 0.0f, 1.0f, Styles.smoothnessRemapping);
@@ -66,13 +66,13 @@ namespace HN.HNRP.Editor
                 DrawMinMaxSlider(materialEditor, aoRemapMinProperty, aoRemapMaxProperty, 0.0f, 1.0f, Styles.aoRemapping);
             }
 
-            // Normal Map
+            // 法线贴图
             DrawTextureAndSlider(materialEditor, normalMapProperty, normalScaleProperty, Styles.normalMap);
 
-            // Emission Map
+            // 自发光贴图
             DrawTextureAndColor(materialEditor, emissionMapProperty, emissionColorProperty, Styles.emissionMap);
 
-            // Base Scale Offset
+            // 基础贴图缩放偏移
             DrawTextureScaleOffset(materialEditor, baseMapProperty);
         }
 
