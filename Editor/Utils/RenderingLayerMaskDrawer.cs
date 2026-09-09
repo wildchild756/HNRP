@@ -2,17 +2,14 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEditor;
-using UnityEditor.Rendering;
 
 namespace HN.HNRP.Editor
 {
-    public static class HNRenderPipelineEditorUtils
+    [CustomPropertyDrawer(typeof(RenderingLayerMaskAttribute))]
+    public class RenderingLayerMaskDrawer : PropertyDrawer
     {
-        public static void DrawRenderingLayerMask(SerializedProperty property, GUIContent style)
+        public override void OnGUI(Rect position, SerializedProperty property, GUIContent label)
         {
-            // if(property == null)
-            //     return;
-            
             Rect controlRect = EditorGUILayout.GetControlRect(true);
             int renderingLayer = property.intValue;
 
@@ -30,10 +27,10 @@ namespace HN.HNRP.Editor
                 EditorGUILayout.HelpBox($"One or more of the Rendering Layers is not defined in the Universal Global Settings asset.", MessageType.Warning);
             }
 
-            EditorGUI.BeginProperty(controlRect, style, property);
+            EditorGUI.BeginProperty(controlRect, label, property);
 
             EditorGUI.BeginChangeCheck();
-            renderingLayer = EditorGUI.MaskField(controlRect, style, renderingLayer, renderingLayerMaskNames);
+            renderingLayer = EditorGUI.MaskField(controlRect, label, renderingLayer, renderingLayerMaskNames);
 
             if (EditorGUI.EndChangeCheck())
                 property.uintValue = (uint)renderingLayer;

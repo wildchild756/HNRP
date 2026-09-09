@@ -233,20 +233,7 @@ namespace HN.HNRP.Editor
 
         private static void DrawRenderingContent(HNRenderPipelineSerializedLight p, UnityEditor.Editor owner)
         {
-            if (p.settings.light.type != LightType.Rectangle &&
-                !p.settings.isCompletelyBaked)
-            {
-                EditorGUI.BeginChangeCheck();
-                HNRenderPipelineEditorUtils.DrawRenderingLayerMask(
-                    p.renderingLayerMask,
-                    Styles.renderingLayers
-                );
-                if (EditorGUI.EndChangeCheck())
-                {
-                    // if (!p.customShadowLayers.boolValue)
-                    //     SyncLightAndShadowLayers(p, p.renderingLayers);
-                }
-            }
+            EditorGUILayout.PropertyField(p.renderingLayerMask, Styles.renderingLayers);
             EditorGUILayout.PropertyField(p.settings.cullingMask, Styles.cullingMask);
             if (p.settings.cullingMask.intValue != -1)
             {

@@ -69,7 +69,7 @@ namespace HN.HNRP
         /// 对输入 slot：本输入连接到的输出 slot。
         /// 对输出 slot：恒为 <c>null</c>。
         /// </summary>
-        protected PassSlot? connectedOutput;
+        protected PassSlot connectedOutput;
 
         /// <summary>
         /// 拥有本 slot 的 <see cref="Pass"/>。由 <see cref="Pass.RegisterSlot"/> 设置；

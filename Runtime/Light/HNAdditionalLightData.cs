@@ -98,7 +98,7 @@ namespace HN.HNRP
         [SerializeField]
         private Vector2 lightCookieOffset = Vector2.zero;
 
-        [SerializeField]
+        [SerializeField, RenderingLayerMask]
         private uint renderingLayerMask = 1;
 
         [SerializeField]

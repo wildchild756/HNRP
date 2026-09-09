@@ -29,6 +29,7 @@ namespace HN.HNRP
         /// <summary>
         /// 构建渲染器列表时应用的渲染层掩码，仅匹配层上的渲染器被包含。
         /// </summary>
+        [RenderingLayerMask]
         public uint RenderingLayerMask;
 
         /// <summary>
