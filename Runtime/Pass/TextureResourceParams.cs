@@ -104,6 +104,7 @@ namespace HN.HNRP
             {
                 ColorFormat = GraphicsFormat.R8G8B8A8_UNorm,
                 DepthBits = DepthBits.None,
+                Slices = 1,
                 TextureScale = Vector2.one,
                 FilterMode = FilterMode.Bilinear,
                 WrapMode = TextureWrapMode.Repeat,
@@ -127,7 +128,6 @@ namespace HN.HNRP
             int texHeight = Height > 0
                 ? Height
                 : Mathf.Max(1, Mathf.RoundToInt(camera.pixelHeight * TextureScale.y));
-            Slices = 1;
 
             return new TextureDesc(texWidth, texHeight, false, false)
             {

@@ -141,7 +141,6 @@ namespace HN.HNRP
         public ClusterCullingReflectionProbePass(string passName)
             : base(passName)
         {
-            m_AtlasParams = CreateDefaultAtlasParams();
         }
 
         /// <inheritdoc />
@@ -165,6 +164,7 @@ namespace HN.HNRP
             {
                 ColorFormat = GraphicsFormat.B10G11R11_UFloatPack32,
                 DepthBits = DepthBits.None,
+                Slices = 1,
                 TextureScale = Vector2.one,
                 Width = 4096,
                 Height = 4096,
@@ -202,6 +202,8 @@ namespace HN.HNRP
         /// </remarks>
         public override void PreRecord(RenderGraphAsset template, CameraContext context)
         {
+            m_AtlasParams = CreateDefaultAtlasParams();
+            
             m_Context = context;
 
             if (context.RuntimeResources != null)
