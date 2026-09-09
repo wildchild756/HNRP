@@ -49,6 +49,8 @@ namespace HN.HNRP
         {
             InstanceAsset = asset;
 
+            SetSupportedRenderingFeatures();
+
             reflectionProbeRenderer = new ReflectionProbeRenderer(new ReflectionProbeCameraPool());
 
             // Register all [Pass]-decorated pass types before building any render graph.
@@ -143,11 +145,11 @@ namespace HN.HNRP
                 if (camera.cameraType == CameraType.Preview)
                 {
                     string cameraName = camera.name;
-                    if (cameraName == PREVIEW_CAMERA_NAME)
+                    if (cameraName == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME)
                     {
                         renderGraphAsset = InstanceAsset.gameViewRenderGraphViewBlock.GetRenderGraphObject();
                     }
-                    else if (cameraName == PREVIEW_SCENE_CAMERA_NAME)
+                    else if (cameraName == HNRenderPipelineUtils.PREVIEW_SCENE_CAMERA_NAME)
                     {
                         renderGraphAsset = InstanceAsset.previewRenderGraphViewBlock.GetRenderGraphObject();
                     }
@@ -362,6 +364,38 @@ namespace HN.HNRP
             };
         }
 
+
+        private static void SetSupportedRenderingFeatures()
+        {
+#if UNITY_EDITOR
+            SupportedRenderingFeatures.active = new SupportedRenderingFeatures()
+            {
+                reflectionProbeModes = SupportedRenderingFeatures.ReflectionProbeModes.Rotation,
+                defaultMixedLightingModes = SupportedRenderingFeatures.LightmapMixedBakeModes.IndirectOnly,
+                mixedLightingModes = SupportedRenderingFeatures.LightmapMixedBakeModes.IndirectOnly,
+                lightmapBakeTypes = LightmapBakeType.Baked | LightmapBakeType.Mixed | LightmapBakeType.Realtime,
+                lightmapsModes = LightmapsMode.NonDirectional | LightmapsMode.CombinedDirectional,
+                lightProbeProxyVolumes = true,
+                motionVectors = true,
+                receiveShadows = false,
+                reflectionProbes = false,
+                rendererPriority = true,
+                overridesFog = true,
+                overridesOtherLightingSettings = true,
+                editableMaterialRenderQueue = false,
+                enlighten = true,
+                overridesLODBias = true,
+                overridesMaximumLODLevel = true,
+                overridesShadowmask = true,
+                overridesRealtimeReflectionProbes = true,
+                autoAmbientProbeBaking = false,
+                autoDefaultReflectionProbeBaking = false,
+                rendersUIOverlay = true,
+                supportsHDR = true
+            };
+#endif
+        }
+
         /// <summary>
         /// Sets up per-frame camera properties (VP matrix, etc.) on the render context.
         /// </summary>
@@ -422,8 +456,5 @@ namespace HN.HNRP
         private static bool s_RTHandlesInitialized;
 
         internal const int defaultRenderingLayerMask = 0x00000001;
-
-        private const string PREVIEW_CAMERA_NAME = "Preview Camera";
-        private const string PREVIEW_SCENE_CAMERA_NAME = "Preview Scene Camera";
     }
 }

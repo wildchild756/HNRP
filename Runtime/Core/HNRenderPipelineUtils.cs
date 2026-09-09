@@ -47,5 +47,10 @@ namespace HN.HNRP
                 computeBuffer = new ComputeBuffer(size, stride, type);
             }
         }
+
+
+        public static readonly string PREVIEW_CAMERA_NAME = "Preview Camera";
+
+        public static readonly string PREVIEW_SCENE_CAMERA_NAME = "Preview Scene Camera";
     }
 }
