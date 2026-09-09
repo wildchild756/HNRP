@@ -15,6 +15,7 @@ namespace HN.HNRP
     {
         [ReadOnly]
         public NativeArray<VisibleLight> visibleLights;
+        public NativeArray<uint> renderingLayerMasks;
         public NativeArray<LightData> lightDatas;
 
         public void Execute(int index)
@@ -30,6 +31,7 @@ namespace HN.HNRP
                 lightData.positionWS = visibleLight.localToWorldMatrix.GetColumn(3);
                 lightData.color = new Vector3(visibleLight.finalColor.r, visibleLight.finalColor.g, visibleLight.finalColor.b);
                 lightData.directionWS = -visibleLight.localToWorldMatrix.GetColumn(2);
+                lightData.renderingLayerMask = renderingLayerMasks[index];
                 
                 if(visibleLight.lightType == LightType.Directional)
                 {

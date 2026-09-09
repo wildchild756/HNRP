@@ -44,8 +44,8 @@ namespace HN.HNRP
         public Vector3 directionWS;
 
         /// <summary>
-        /// TODO: rendering layer mask
+        /// rendering layer mask
         /// </summary>
-        public bool __unused__1;
+        public uint renderingLayerMask;
     }
 }

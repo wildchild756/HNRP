@@ -10,6 +10,7 @@ struct Light
     float3 directionWS;
     float shadowAttenuation;
     float distanceAttenuation;
+    uint renderingLayerMask;
 };
 
 #if CLUSTER_CULLING_LIGHT
@@ -43,6 +44,7 @@ Light GetMainLight()
     light.directionWS = _LightDatasBuffer[mainLightIndex].directionWS;
     light.shadowAttenuation = 1.0;
     light.distanceAttenuation = 1.0;
+    light.renderingLayerMask = asuint(_LightDatasBuffer[mainLightIndex].renderingLayerMask);
 
     return light;
 }
@@ -72,6 +74,7 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
             light.distanceAttenuation = distanceAttenuation * angleAttenuation;
         }
     }
+    light.renderingLayerMask = asuint(_LightDatasBuffer[lightIndex].renderingLayerMask);
 
     return light;
 }

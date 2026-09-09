@@ -3,6 +3,7 @@
 // </copyright>
 
 using System;
+using System.Runtime.InteropServices.WindowsRuntime;
 using Unity.Collections;
 using Unity.Collections.LowLevel.Unsafe;
 using Unity.Jobs;
@@ -37,6 +38,7 @@ namespace HN.HNRP
         private int maxLightCount; 
 
         private BuildLightDataJob job;
+        private NativeArray<uint> renderingLayerMasks;
         private NativeArray<LightData> lightDatas;
 
         // ── 构造函数 ──
@@ -100,6 +102,19 @@ namespace HN.HNRP
             {
                 builder.AllowPassCulling(false);
 
+                var renderingLayerMaskList = new uint[visibleLights.Length];
+                for(int i = 0; i < visibleLights.Length; i++)
+                {
+                    if(visibleLights[i].light.TryGetComponent<HNAdditionalLightData>(out var lightData))
+                    {
+                        renderingLayerMaskList[i] = lightData.RenderingLayerMask;
+                    }
+                    else
+                    {
+                        renderingLayerMaskList[i] = 0;
+                    }
+                }
+
                 ComputeBufferHandle lightDatasBuffer = renderGraph.CreateComputeBuffer(
                     new ComputeBufferDesc(
                         maxLightCount,
@@ -111,11 +126,13 @@ namespace HN.HNRP
                 // 发布真实渲染图句柄，使下游 pass 能经 ReadHandle() 读取。
                 LightDatasBufferSlot.SetHandle(lightDatasBuffer);
 
+                renderingLayerMasks = new NativeArray<uint>(renderingLayerMaskList, Allocator.TempJob);
                 lightDatas = new NativeArray<LightData>(lightCount, Allocator.TempJob);
 
                 job = new BuildLightDataJob
                 {
                     visibleLights = visibleLights,
+                    renderingLayerMasks = renderingLayerMasks,
                     lightDatas = lightDatas,
                 };
 

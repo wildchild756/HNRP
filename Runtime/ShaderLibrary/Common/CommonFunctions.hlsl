@@ -20,6 +20,11 @@ float3 NormalizeNormalPerPixel(float3 normalWS)
 #endif
 }
 
+uint GetMeshRenderingLayer()
+{
+    return asuint(unity_RenderingLayer.x);
+}
+
 bool IsPerspectiveProjection()
 {
     return (unity_OrthoParams.w == 0);

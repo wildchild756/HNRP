@@ -42,25 +42,32 @@ void BuildLightingData(LitSurfaceData litSurfaceData, BRDFData brdfData, Lightin
 {
     ZERO_INITIALIZE(LightingData, lightingData);
 
-    float3 mainLightRadiance = DirectLightingDiffuseRadiance(lightingInputData.mainLight, brdfLightingData.saturateNdotL);
-    float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
-    lightingData.mainDirectLight = DirectLightingPBR(brdfData.diffuse, mainLightRadiance, brdfData.specular, mainLightSpecularTerm);
+    uint meshRenderingLayers = GetMeshRenderingLayer();
+    if(IsMatchingLightLayer(lightingInputData.mainLight.renderingLayerMask, meshRenderingLayers))
+    {
+        float3 mainLightRadiance = DirectLightingDiffuseRadiance(lightingInputData.mainLight, brdfLightingData.saturateNdotL);
+        float mainLightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
+        lightingData.mainDirectLight = DirectLightingPBR(brdfData.diffuse, mainLightRadiance, brdfData.specular, mainLightSpecularTerm);
 #if _ALPHAPREMULTIPLY_ON
-    lightingData.mainDirectLight.diffuse *= litSurfaceData.alpha;
+        lightingData.mainDirectLight.diffuse *= litSurfaceData.alpha;
 #endif
+    }
 
     uint lightCount = GetAdditionalLightsCount();
     float2 normalizedScreenSpaceUV = lightingInputData.normalizedScreenSpaceUV;
     float3 positionWS = lightingInputData.positionWS;
     LIGHT_LOOP_BEGIN(lightCount)
         Light light = GetAdditionalLight(lightIndex, positionWS);
-        float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
-        float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
-        float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
-        float3 specularRadiance = DirectLightingSpecularRadiance(light, lightSpecularTerm);
-        DirectLightingData additionalDirectLight = DirectLightingPBR(brdfData.diffuse, diffuseRadiance, brdfData.specular, specularRadiance);
-        lightingData.additionalDirectLight.diffuse += additionalDirectLight.diffuse;
-        lightingData.additionalDirectLight.specular += additionalDirectLight.specular;
+        if(IsMatchingLightLayer(light.renderingLayerMask, meshRenderingLayers))
+        {
+            float saturateNdotL = saturate(dot(brdfData.normalWS, light.directionWS));
+            float3 diffuseRadiance = DirectLightingDiffuseRadiance(light, saturateNdotL);
+            float lightSpecularTerm = DirectBRDFSpecular(brdfData, brdfLightingData);
+            float3 specularRadiance = DirectLightingSpecularRadiance(light, lightSpecularTerm);
+            DirectLightingData additionalDirectLight = DirectLightingPBR(brdfData.diffuse, diffuseRadiance, brdfData.specular, specularRadiance);
+            lightingData.additionalDirectLight.diffuse += additionalDirectLight.diffuse;
+            lightingData.additionalDirectLight.specular += additionalDirectLight.specular;
+        }
     LIGHT_LOOP_END
 
     float3 envSpecular = EnvironmentBRDFSpecular(brdfData, brdfLightingData);
