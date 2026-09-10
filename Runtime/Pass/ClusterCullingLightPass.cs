@@ -2,6 +2,8 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using Unity.Collections;
+using Unity.Collections.LowLevel.Unsafe;
 using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
@@ -177,6 +179,8 @@ namespace HN.HNRP
                     directionalLightCount -= 1;
                 }
 
+                int mainLightIndex = GetMainLightIndex(cameraContext.VisibleLights);
+
                 int2 screenResolution =
                     math.int2(camera.pixelWidth, camera.pixelHeight);
                 int3 clusterSize = GetClusterSize(screenResolution);
@@ -210,7 +214,8 @@ namespace HN.HNRP
                     directionalLightCount;
                 passData.clusterCullingLightParams.localLightCount =
                     localLightCount;
-                passData.clusterCullingLightParams.unused = 0;
+                passData.clusterCullingLightParams.mainLightIndex = 
+                    mainLightIndex;
 
                 // 相机矩阵
                 Matrix4x4 clipToView = camera.projectionMatrix;
@@ -366,6 +371,44 @@ namespace HN.HNRP
             return scaleOffset;
         }
 
+        private static int GetMainLightIndex(NativeArray<VisibleLight> visibleLights)
+        {
+            int visibleLightsCount = visibleLights.Length;
+            if(visibleLightsCount == 0)
+                return -1;
+
+            Light sunLight = RenderSettings.sun;
+            int brightestDirectionalLightIndex = -1;
+            float brightestLightIntensity = 0.0f;
+            for(int i = 0; i < visibleLightsCount; i++)
+            {
+                VisibleLight currVisibleLight = visibleLights[i];
+                Light currLight = currVisibleLight.light;
+
+                // 粒子系统light的light property为null，粒子系统light会排列在visibleLights中的末尾
+                // 因此，如果第一个light是粒子系统light，那么后续所有light都是粒子系统light
+                // 此时我们要么已获取到main light，要么当前visibleLights中没有main light
+                if(currLight == null)
+                    break;
+
+                if(currVisibleLight.lightType == LightType.Directional)
+                {
+                    // sun light如果设置则选择sun light
+                    if(currLight == sunLight)
+                        return i;
+                    
+                    // sun light没有设置则选最亮的directional light
+                    if(currLight.intensity > brightestLightIntensity)
+                    {
+                        brightestLightIntensity = currLight.intensity;
+                        brightestDirectionalLightIndex = i;
+                    }
+                }
+            }
+
+            return brightestDirectionalLightIndex;
+        }
+
         // ── Pass data ──
 
         /// <summary>
@@ -473,7 +516,7 @@ namespace HN.HNRP
             public int localLightCount;
 
             /// <summary>为保持 16 字节对齐而填充。</summary>
-            public float unused;
+            public int mainLightIndex;
         }
 
         /// <summary>

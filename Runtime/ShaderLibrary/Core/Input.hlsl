@@ -73,7 +73,7 @@ GLOBAL_CBUFFER_START(_ClusterCullingLightParamsBuffer, b3)
     int _ClusterCullingLightWordsPerCluster;
     int _ClusterCullingLightDirectionalLightCount;
     int _ClusterCullingLightLocalLightCount;
-    float _ClusterCullingLightUnused;
+    int _ClusterCullingLightMainLightIndex;
 CBUFFER_END
 
 #define _CLUSTER_CULLING_LIGHT_XY_SCALE (_ClusterCullingLightClusterSize)
@@ -82,6 +82,7 @@ CBUFFER_END
 #define _CLUSTER_CULLING_LIGHT_WORDS_PER_CLUSTER (_ClusterCullingLightWordsPerCluster)
 #define _CLUSTER_CULLING_LIGHT_DIRECTIONAL_LIGHT_COUNT (_ClusterCullingLightDirectionalLightCount)
 #define _CLUSTER_CULLING_LIGHT_LOCAL_LIGHT_COUNT (_ClusterCullingLightLocalLightCount)
+#define _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX (_ClusterCullingLightMainLightIndex)
 
 StructuredBuffer<uint> _ClusterCullingLightMaskBuffer;
 

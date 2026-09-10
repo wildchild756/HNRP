@@ -19,7 +19,7 @@ struct Light
     ClusterCullingLightIterator _internal_clusterIterator = ClusterCullingLightInit(normalizedScreenSpaceUV, positionWS); \
     [loop] while (ClusterCullingLightNext(_internal_clusterIterator, lightIndex)) { \
         if(lightIndex > MAX_DIRECTIONAL_LIGHT_ON_SCREEN + MAX_LOCAL_LIGHT_ON_SCREEN) break; \
-        if(lightIndex == _LightConstantData.x) continue;
+        if(lightIndex == _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX) continue;
         
     #define LIGHT_LOOP_END } }
 #else
@@ -37,7 +37,12 @@ float3 GetViewDirectionWS(float3 positionWS)
 
 Light GetMainLight()
 {
-    uint mainLightIndex = _LightConstantData.x;
+    int mainLightIndex = 0;
+#if CLUSTER_CULLING_LIGHT
+    mainLightIndex = _CLUSTER_CULLING_LIGHT_MAIN_LIGHT_INDEX;
+#else
+    mainLightIndex = _LightConstantData.x;
+#endif
     Light light;
     ZERO_INITIALIZE(Light, light);
     light.color = _LightDatasBuffer[mainLightIndex].color;

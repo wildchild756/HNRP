@@ -96,7 +96,7 @@ namespace HN.HNRP
         public fixed float _FrustumPlanes[6 * 4];
 
         /// <summary>光源常量数据（由光源收集填充）。</summary>
-        public Vector4 _LightConstantData;
+        // public Vector4 _LightConstantData;
 
         /// <summary>环境光与反射相关颜色参数。</summary>
         public Vector4 _GlossyEnvironmentColor;
