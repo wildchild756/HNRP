@@ -14,6 +14,7 @@ namespace HN.HNRP
         void OnEnable()
         {
             builtinLight = GetComponent<Light>();
+            cascadeShadow.EnsureValid();
         }
 
         void Update()
@@ -60,32 +61,32 @@ namespace HN.HNRP
 
         public CascadeCountType CascadeCount
         {
-            get => cascadeCount;
-            set => cascadeCount = value;
+            get => cascadeShadow.CascadeCount;
+            set => cascadeShadow.CascadeCount = value;
         }
 
         public ResolutionType CascadeResolution
         {
-            get => cascadeResolution;
-            set => cascadeResolution = value;
+            get => cascadeShadow.CascadeResolution;
+            set => cascadeShadow.CascadeResolution = value;
         }
 
         public List<float> CascadeSplits
         {
-            get => cascadeSplits;
-            set => cascadeSplits = value;
+            get => cascadeShadow.CascadeSplits;
+            set => cascadeShadow.CascadeSplits = value;
         }
 
         public ShadowUpdateModeType ShadowUpdateMode
         {
-            get => shadowUpdateMode;
-            set => shadowUpdateMode = value;
+            get => cascadeShadow.ShadowUpdateMode;
+            set => cascadeShadow.ShadowUpdateMode = value;
         }
 
         public List<int> CascadeTimeSlices
         {
-            get => cascadeTimeSlices;
-            set => cascadeTimeSlices = value;
+            get => cascadeShadow.CascadeTimeSlices;
+            set => cascadeShadow.CascadeTimeSlices = value;
         }
 
 
@@ -104,50 +105,8 @@ namespace HN.HNRP
         [SerializeField]
         private bool enableShadow = true;
 
-        [SerializeField]
-        private CascadeCountType cascadeCount = CascadeCountType.Four;
-
-        [SerializeField]
-        private ResolutionType cascadeResolution = ResolutionType.Medium;
-
-        [SerializeField]
-        private List<float> cascadeSplits = new List<float>((int)CascadeCountType.Eight)
-        {
-            1f, 4f, 10f, 30f, 50f, 100f, 300f, 1000f
-        };
-
-        [SerializeField]
-        private ShadowUpdateModeType shadowUpdateMode = ShadowUpdateModeType.EveryFrame;
-
-        [SerializeField]
-        private List<int> cascadeTimeSlices = new List<int>((int)CascadeCountType.Eight)
-        {
-            0, 0, 2, 2, 4, 4, 8, 8
-        };
-
-
-        public enum CascadeCountType
-        {
-            One = 1,
-            Two = 2,
-            Four = 4,
-            Eight = 8
-        }
-
-        public enum ResolutionType
-        {
-            Low = 512,
-            Medium = 1024,
-            High = 2048,
-            Ultra = 4096
-        }
-
-        public enum ShadowUpdateModeType
-        {
-            EveryFrame,
-            OnDemand,
-            Custom
-        }
+        [SerializeField, CascadeShadow]
+        private CascadeShadowSettings cascadeShadow = CascadeShadowSettings.Default;
     }
 
 

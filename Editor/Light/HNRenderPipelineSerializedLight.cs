@@ -30,6 +30,8 @@ namespace HN.HNRP.Editor
             lightCookieSizeProperty = serializedAdditionalDataObject.FindProperty("cookieSize");
             lightCookieOffsetProperty = serializedAdditionalDataObject.FindProperty("cookieOffset");
             renderingLayerMask = serializedAdditionalDataObject.FindProperty("renderingLayerMask");
+            cascadeShadowProperty = serializedAdditionalDataObject.FindProperty("cascadeShadow");
+            enableShadowProperty = serializedAdditionalDataObject.FindProperty("enableShadow");
         }
 
         public void Apply()
@@ -62,5 +64,7 @@ namespace HN.HNRP.Editor
         public SerializedProperty lightCookieSizeProperty { get; private set; }
         public SerializedProperty lightCookieOffsetProperty { get; private set; }
         public SerializedProperty renderingLayerMask { get; private set; }
+        public SerializedProperty cascadeShadowProperty { get; private set; }
+        public SerializedProperty enableShadowProperty { get; private set; }
     }
 }

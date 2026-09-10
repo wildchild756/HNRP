@@ -304,13 +304,13 @@ namespace HN.HNRP
 
             public Vector3 lightDirection;
 
-            public HNAdditionalLightData.CascadeCountType cascadeCount;
+            public CascadeCountType cascadeCount;
 
-            public HNAdditionalLightData.ResolutionType cascadeResolution;
+            public ResolutionType cascadeResolution;
 
             public List<float> cascadeSplits;
 
-            public HNAdditionalLightData.ShadowUpdateModeType shadowUpdateMode;
+            public ShadowUpdateModeType shadowUpdateMode;
 
             public List<int> cascadeTimeSlices;
             

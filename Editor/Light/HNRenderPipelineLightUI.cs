@@ -262,113 +262,29 @@ namespace HN.HNRP.Editor
                 return;
             }
 
-            p.settings.DrawShadowsType();
-
-            if (p.settings.shadowsType.hasMultipleDifferentValues)
+            // 级联阴影仅适用于平行光；点光/聚光只支持单级阴影。
+            LightType lightType = p.settings.light.type;
+            bool supportsShadow = lightType == LightType.Directional
+                || lightType == LightType.Point
+                || lightType == LightType.Spot;
+            if (!supportsShadow)
             {
-                EditorGUILayout.HelpBox("Cannot multi edit different shadow types", MessageType.Info);
+                EditorGUILayout.HelpBox("Shadow settings are only available for directional, point and spot lights.", MessageType.Info);
                 return;
             }
 
-            if (p.settings.light.shadows == LightShadows.None)
-                return;
-
-            var lightType = p.settings.light.type;
-
-            using (new EditorGUI.IndentLevelScope())
+            if (p.cascadeShadowProperty == null || p.enableShadowProperty == null)
             {
-                if (p.settings.isBakedOrMixed)
-                {
-                    switch (lightType)
-                    {
-                        // Baked Shadow radius
-                        case LightType.Point:
-                        case LightType.Spot:
-                            p.settings.DrawBakedShadowRadius();
-                            break;
-                        case LightType.Directional:
-                            p.settings.DrawBakedShadowAngle();
-                            break;
-                    }
-                }
-
-//                 if (lightType != LightType.Rectangle && !p.settings.isCompletelyBaked)
-//                 {
-//                     EditorGUILayout.LabelField(Styles.ShadowRealtimeSettings, EditorStyles.boldLabel);
-//                     using (new EditorGUI.IndentLevelScope())
-//                     {
-//                         // Resolution
-//                         if (lightType == LightType.Point || lightType == LightType.Spot)
-//                             DrawShadowsResolutionGUI(p);
-
-//                         EditorGUILayout.Slider(p.settings.shadowsStrength, 0f, 1f, Styles.ShadowStrength);
-
-//                         // Bias
-//                         DrawAdditionalShadowData(p, owner);
-
-//                         // 该近平面最小边界应与 SharedLightData::GetNearPlaneMinBound() 中的计算保持一致
-//                         float nearPlaneMinBound = Mathf.Min(0.01f * p.settings.range.floatValue, 0.1f);
-//                         EditorGUILayout.Slider(p.settings.shadowsNearPlane, nearPlaneMinBound, 10.0f, Styles.ShadowNearPlane);
-//                         var isHololens = false;
-//                         var isQuest = false;
-// #if XR_MANAGEMENT_4_0_1_OR_NEWER
-//                         var buildTargetGroup = BuildPipeline.GetBuildTargetGroup(EditorUserBuildSettings.activeBuildTarget);
-//                         var buildTargetSettings = XRGeneralSettingsPerBuildTarget.XRGeneralSettingsForBuildTarget(buildTargetGroup);
-//                         if (buildTargetSettings != null && buildTargetSettings.AssignedSettings != null && buildTargetSettings.AssignedSettings.activeLoaders.Count > 0)
-//                         {
-//                             isHololens = buildTargetGroup == BuildTargetGroup.WSA;
-//                             isQuest = buildTargetGroup == BuildTargetGroup.Android;
-//                         }
-
-// #endif
-//                         // Soft Shadow Quality
-//                         if (p.settings.light.shadows == LightShadows.Soft)
-//                             EditorGUILayout.PropertyField(p.softShadowQualityProp, Styles.SoftShadowQuality);
-
-//                         if (isHololens || isQuest)
-//                         {
-//                             EditorGUILayout.HelpBox(
-//                                 "Per-light soft shadow quality level is not supported on untethered XR platforms. Use the Soft Shadow Quality setting in the URP Asset instead",
-//                                 MessageType.Warning
-//                             );
-//                         }
-
-//                     }
-
-//                     EditorGUI.BeginChangeCheck();
-//                     EditorGUILayout.PropertyField(p.customShadowLayers, Styles.customShadowLayers);
-//                     // 撤销 Light 组件上的更改，因为勾选关联后 SyncLightAndShadowLayers 会自动改值
-//                     if (EditorGUI.EndChangeCheck())
-//                     {
-//                         if (p.customShadowLayers.boolValue)
-//                         {
-//                             p.settings.light.renderingLayerMask = p.shadowRenderingLayers.intValue;
-//                         }
-//                         else
-//                         {
-//                             p.serializedAdditionalDataObject.ApplyModifiedProperties(); // 需把上述修改推送到对象上，因为它用于同步
-//                             SyncLightAndShadowLayers(p, p.renderingLayers);
-//                         }
-//                     }
-
-//                     if (p.customShadowLayers.boolValue)
-//                     {
-//                         using (new EditorGUI.IndentLevelScope())
-//                         {
-//                             EditorGUI.BeginChangeCheck();
-//                             HNRenderPipelineEditorUtils.DrawRenderingLayerMask(p.shadowRenderingLayers, Styles.ShadowLayer);
-//                             if (EditorGUI.EndChangeCheck())
-//                             {
-//                                 p.settings.light.renderingLayerMask = p.shadowRenderingLayers.intValue;
-//                                 p.Apply();
-//                             }
-//                         }
-//                     }
-//                 }
+                return;
             }
 
-            // if (!UnityEditor.Lightmapping.bakedGI && !p.settings.lightmapping.hasMultipleDifferentValues && p.settings.isBakedOrMixed)
-            //     EditorGUILayout.HelpBox(Styles.BakingWarning.text, MessageType.Warning);
+            EditorGUILayout.PropertyField(p.enableShadowProperty, Styles.enableShadow);
+            if (!p.enableShadowProperty.boolValue)
+            {
+                return;
+            }
+
+            EditorGUILayout.PropertyField(p.cascadeShadowProperty, Styles.cascadeShadow);
         }
 #endregion
 
@@ -399,7 +315,10 @@ namespace HN.HNRP.Editor
 
             public static readonly GUIContent[] areaLightShapeTitles = { EditorGUIUtility.TrTextContent("Rectangle"), EditorGUIUtility.TrTextContent("Disc") };
             public static readonly int[] areaLightShapeValues = { (int)LightType.Rectangle, (int)LightType.Disc };
-            
+
+            public static readonly GUIContent cascadeShadow = EditorGUIUtility.TrTextContent("Cascade Shadow", "配置平行光的级联阴影级数、分辨率、级联边界与更新模式。");
+            public static readonly GUIContent enableShadow = EditorGUIUtility.TrTextContent("Enable Shadow", "开启后该光源参与阴影绘制。");
+
             public static readonly GUIContent sunSourceWarning = EditorGUIUtility.TrTextContent("This light is set as the current Sun Source, which requires a directional light. Go to the Lighting Window's Environment settings to edit the Sun Source.");
             public static readonly GUIContent cullingMaskWarning = EditorGUIUtility.TrTextContent("Culling Mask should be used to control which lights are culled per camera. If you want to exclude certain lights from affecting certain objects, use Rendering Layers on the Light, and Rendering Layer Mask on the Mesh Renderer.");
         }
