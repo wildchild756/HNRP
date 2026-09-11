@@ -44,7 +44,7 @@ void InitializeLightingInputData(float3 positionWS, float2 mainUV, float2 static
 
     lightingInputData.positionWS = positionWS;
 
-    Light mainLight = GetMainLight();
+    Light mainLight = GetMainLight(positionWS);
     lightingInputData.mainLight = mainLight;
 
     lightingInputData.mainUV = mainUV;

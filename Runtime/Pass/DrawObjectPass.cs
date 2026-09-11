@@ -208,6 +208,8 @@ namespace HN.HNRP
             RegisterSlot(DepthTargetSlot);
             CascadeShadowMapSlot = new TextureSlot("ShadowMap", SlotDirection.Input);
             RegisterSlot(CascadeShadowMapSlot);
+            ScreenSpaceShadowMapSlot = new TextureSlot("ScreenSpaceShadowMap", SlotDirection.Input);
+            RegisterSlot(ScreenSpaceShadowMapSlot);
             LightDatasSlot = new ComputeBufferSlot("LightDatas", SlotDirection.Input);
             RegisterSlot(LightDatasSlot);
             ReflectionProbeAtlasSlot = new TextureSlot("ReflectionProbeAtlas", SlotDirection.Input);
@@ -377,14 +379,14 @@ namespace HN.HNRP
                     {
                         if (hasCascadeShadow)
                         {
-                            ctx.cmd.EnableShaderKeyword(GlobalKeywords.cascadeShadowMap);
+                            ctx.cmd.EnableShaderKeyword(GlobalKeywords.shadowMap);
                             if (isScreenSpaceShadow)
                                 ctx.cmd.EnableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
                             else
                                 ctx.cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
                         }
                         else
-                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.cascadeShadowMap);
+                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.shadowMap);
 
                         if (data.enableProbeKeyword)
                         {

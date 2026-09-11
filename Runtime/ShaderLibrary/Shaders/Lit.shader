@@ -54,6 +54,7 @@ Shader "HNRP/Lit"
             ZWrite[_ZWrite]
 
             HLSLPROGRAM
+            #pragma target 4.5
             #pragma vertex vert
             #pragma fragment frag
 
@@ -67,7 +68,7 @@ Shader "HNRP/Lit"
             
             // HNRP Keywords
             #pragma multi_compile _ EVALUATE_SH_MIXED EVALUATE_SH_VERTEX
-            #pragma multi_compile _ CASCADE_SHADOW_MAP
+            #pragma multi_compile _ SHADOW_MAP
             #pragma multi_compile _ SCREEN_SPACE_SHADOW_MAP
             #pragma multi_compile _ CLUSTER_CULLING_REFLECTION_PROBE
             #pragma multi_compile _ CLUSTER_CULLING_LIGHT
@@ -81,9 +82,36 @@ Shader "HNRP/Lit"
             // GPU Instancing
             #pragma multi_compile_instancing
 
-            #pragma enable_d3d11_debug_symbols
+            // #pragma enable_d3d11_debug_symbols
 
             #include "../Lit/Lit.hlsl"
+            ENDHLSL
+        }
+
+        Pass
+        {
+            Tags
+            {
+                "LightMode" = "ShadowCaster"
+            }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull[_CullMode]
+
+            HLSLPROGRAM
+            #pragma target 4.5
+            #pragma vertex ShadowCasterVert
+            #pragma fragment ShadowCasterFrag
+
+            // Material Keywords
+            #pragma shader_feature_local_fragment _ALPHATEST_ON
+
+            // GPU Instancing
+            #pragma multi_compile_instancing
+
+            #include "../Lit/LitShadowCaster.hlsl"
             ENDHLSL
         }
     }

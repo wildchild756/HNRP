@@ -78,6 +78,7 @@ namespace HN.HNRP
                 new List<Pass>
                 {
                     new BuildLightDataPass("buildLight"),
+                    new DrawShadowPass("drawShadow"),
                     new ClusterCullingReflectionProbePass("clusterProbe"),
                     new ClusterCullingLightPass("clusterLight"),
                     new DrawObjectPass("forwardOpaque"),
@@ -103,6 +104,9 @@ namespace HN.HNRP
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "transparency", "LightDatas"),
+                    SlotConnection.Create("buildLight", "lightDatasBuffer", "drawShadow", "lightDatasBuffer"),
+                    SlotConnection.Create("drawShadow", "ShadowMap", "forwardOpaque", "ShadowMap"),
+                    SlotConnection.Create("drawShadow", "ShadowMap", "transparency", "ShadowMap"),
                     SlotConnection.Create("clusterProbe", "reflectionProbeAtlasOutput", "transparency", "ReflectionProbeAtlas"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeMaskBuffer", "transparency", "ProbeMask"),
                     SlotConnection.Create("clusterProbe", "clusterCullingReflectionProbeDatasBuffer", "transparency", "ProbeDatas"),
@@ -127,6 +131,7 @@ namespace HN.HNRP
                 new List<Pass>
                 {
                     new BuildLightDataPass("buildLight"),
+                    new DrawShadowPass("drawShadow"),
                     new ClusterCullingLightPass("clusterLight"),
                     new DrawObjectPass("forwardOpaque"),
                     new BuiltinSkyPass("sky"),
@@ -151,6 +156,9 @@ namespace HN.HNRP
                     SlotConnection.Create("transparency", "ColorTargetOutput", "finalBlit", "ColorTarget"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "forwardOpaque", "LightDatas"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "transparency", "LightDatas"),
+                    SlotConnection.Create("buildLight", "lightDatasBuffer", "drawShadow", "lightDatasBuffer"),
+                    SlotConnection.Create("drawShadow", "ShadowMap", "forwardOpaque", "ShadowMap"),
+                    SlotConnection.Create("drawShadow", "ShadowMap", "transparency", "ShadowMap"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "transparency", "LightMask"),
                     SlotConnection.Create("buildLight", "lightDatasBuffer", "clusterLight", "lightDatasBuffer"),
                     SlotConnection.Create("clusterLight", "clusterCullingLightMaskBuffer", "forwardOpaque", "LightMask"),

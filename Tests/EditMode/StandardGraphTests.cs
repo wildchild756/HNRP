@@ -24,7 +24,7 @@ namespace HN.HNRP.Tests
         /// </summary>
         private static readonly string[] ExpectedPassNames =
         {
-            "buildLight", "clusterProbe", "clusterLight",
+            "buildLight", "drawShadow", "clusterProbe", "clusterLight",
             "forwardOpaque", "sky", "transparency", "wireOverlay", "finalBlit",
         };
 
@@ -143,6 +143,8 @@ namespace HN.HNRP.Tests
                 "forwardOpaque.ProbeDatas should be connected through a slot connection from clusterProbe.");
             Assert.That(forwardOpaque.LightMaskSlot!.IsConnected, Is.True,
                 "forwardOpaque.LightMask should be connected through a slot connection from clusterLight.");
+            Assert.That(forwardOpaque.CascadeShadowMapSlot!.IsConnected, Is.True,
+                "forwardOpaque.ShadowMap should be connected through a slot connection from drawShadow.");
 
             // ── sky：color/depth 目标已连接（自 forwardOpaque 链式传入）──
 
@@ -170,6 +172,8 @@ namespace HN.HNRP.Tests
                 "transparency.ProbeDatas should be connected through a slot connection from clusterProbe.");
             Assert.That(transparency.LightMaskSlot!.IsConnected, Is.True,
                 "transparency.LightMask should be connected through a slot connection from clusterLight.");
+            Assert.That(transparency.CascadeShadowMapSlot!.IsConnected, Is.True,
+                "transparency.ShadowMap should be connected through a slot connection from drawShadow.");
 
             // ── wireOverlay：color 目标已连接（自 transparency 链式传入）──
 

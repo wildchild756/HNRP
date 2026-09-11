@@ -87,9 +87,9 @@ namespace HN.HNRP.Tests
         #region Blueprint —— 定义内容
 
         /// <summary>
-        /// Standard 模板声明完整 8-pass 管线（buildLight / clusterProbe /
-        /// clusterLight / forwardOpaque / sky / transparency / wireOverlay /
-        /// finalBlit）、链式槽连接与 PerPixel HDR 设置。
+        /// Standard 模板声明完整 9-pass 管线（buildLight / drawShadow /
+        /// clusterProbe / clusterLight / forwardOpaque / sky / transparency /
+        /// wireOverlay / finalBlit）、链式槽连接与 PerPixel HDR 设置。
         /// 透明 pass 分配透明渲染器列表。
         /// </summary>
         [Test]
@@ -97,17 +97,17 @@ namespace HN.HNRP.Tests
         {
             RenderGraphBlueprint bp = RenderGraphTemplates.Standard.CreateBlueprint();
 
-            Assert.That(bp.Passes.Count, Is.EqualTo(8),
-                "Standard template should declare exactly 8 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(18),
-                "Standard template should declare exactly 18 slot connections.");
+            Assert.That(bp.Passes.Count, Is.EqualTo(9),
+                "Standard template should declare exactly 9 passes.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(21),
+                "Standard template should declare exactly 21 slot connections.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Standard template should use PerPixel SH evaluation.");
             Assert.That(bp.Settings.AllowHDR, Is.True,
                 "Standard template should allow HDR render targets.");
 
-            foreach (string passName in new[] { "buildLight", "forwardOpaque", "finalBlit" })
+            foreach (string passName in new[] { "buildLight", "drawShadow", "forwardOpaque", "finalBlit" })
             {
                 Assert.That(bp.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Standard template should declare a '{passName}' pass.");
@@ -159,7 +159,7 @@ namespace HN.HNRP.Tests
         }
 
         /// <summary>
-        /// Reflection 模板声明 7-pass 反射管线与 11 条槽连接。
+        /// Reflection 模板声明 8-pass 反射管线与 14 条槽连接。
         /// 它不包含 cluster probe pass：Reflection 图渲染探针面，
         /// 但不得自行渲染反射探针。
         /// </summary>
@@ -168,17 +168,17 @@ namespace HN.HNRP.Tests
         {
             RenderGraphBlueprint bp = RenderGraphTemplates.Reflection.CreateBlueprint();
 
-            Assert.That(bp.Passes.Count, Is.EqualTo(7),
-                "Reflection template should declare exactly 7 passes.");
-            Assert.That(bp.Connections.Count, Is.EqualTo(11),
-                "Reflection template should declare exactly 11 slot connections.");
+            Assert.That(bp.Passes.Count, Is.EqualTo(8),
+                "Reflection template should declare exactly 8 passes.");
+            Assert.That(bp.Connections.Count, Is.EqualTo(14),
+                "Reflection template should declare exactly 14 slot connections.");
 
             Assert.That(bp.Settings.SHEvalMode, Is.EqualTo(SHEvalMode.PerPixel),
                 "Reflection template should use PerPixel SH evaluation.");
             Assert.That(bp.Settings.AllowHDR, Is.True,
                 "Reflection template should allow HDR render targets.");
 
-            foreach (string passName in new[] { "buildLight", "forwardOpaque", "transparency", "finalBlit" })
+            foreach (string passName in new[] { "buildLight", "drawShadow", "forwardOpaque", "transparency", "finalBlit" })
             {
                 Assert.That(bp.Passes.Any(p => p.PassName == passName), Is.True,
                     $"Reflection template should declare a '{passName}' pass.");

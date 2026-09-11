@@ -84,6 +84,15 @@ namespace HN.HNRP
                 throw new ArgumentNullException(nameof(template));
             }
 
+            // 已为同一模板构建过：复用已有 pass 实例。
+            // pass 跨帧存活，其持有的资源（如阴影 atlas、驻留分配表）才能跨帧保留。
+            if (CurrentTemplate == template && Passes.Count > 0)
+            {
+                return;
+            }
+
+            DisposePasses();
+
             CurrentTemplate = template;
             Passes = template.Build(this) ?? new List<Pass>();
 
@@ -227,8 +236,8 @@ namespace HN.HNRP
                 throw new ArgumentNullException(nameof(newTemplate));
             }
 
-            Passes.Clear();
             manualConnections.Clear();
+            DisposePasses();
             Build(newTemplate);
         }
 
@@ -254,8 +263,8 @@ namespace HN.HNRP
         /// 实例一致。
         /// </para>
         /// <para>
-        /// 全部启用 pass 执行后，对<b>每个</b> pass（含禁用的）调用
-        /// <see cref="Pass.Cleanup"/> 释放持有资源。
+        /// 刻意不在每帧调用 <see cref="Pass.Cleanup"/>：pass 实例跨帧复用，
+        /// 其资源须跨帧保留；仅在重建模板或 <see cref="Dispose"/> 时释放。
         /// </para>
         /// </remarks>
         public void Render(RenderGraph renderGraph, ScriptableRenderContext context)
@@ -266,7 +275,7 @@ namespace HN.HNRP
                 Context.Context = context;
             }
 
-            // ── 阶段 1–3：执行每个启用 pass ──
+            // ── 执行每个启用 pass ──
             foreach (Pass pass in Passes)
             {
                 if (!pass.IsEnabled)
@@ -278,12 +287,30 @@ namespace HN.HNRP
                 pass.PreRecord(CurrentTemplate, Context);
                 pass.Record(renderGraph);
             }
+        }
 
-            // ── 阶段 4：清理全部 pass ──
+        /// <summary>
+        /// 释放当前 pass 列表：对每个 pass 调用 <see cref="Pass.Cleanup"/>，
+        /// 清空列表并解除模板引用。在重建模板或销毁渲染器时调用。
+        /// </summary>
+        public void Dispose()
+        {
+            DisposePasses();
+            manualConnections.Clear();
+        }
+
+        /// <summary>
+        /// 释放 pass 列表持有的资源并清空列表（不清理手动连接）。
+        /// </summary>
+        private void DisposePasses()
+        {
             foreach (Pass pass in Passes)
             {
-                pass.Cleanup();
+                pass?.Cleanup();
             }
+
+            Passes.Clear();
+            CurrentTemplate = null;
         }
 
         /// <summary>

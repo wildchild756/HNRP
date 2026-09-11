@@ -36,6 +36,11 @@ namespace HN.HNRP
         private readonly ReflectionProbeCameraPool pool;
 
         /// <summary>
+        /// 主相机与探针面共用的渲染器缓存，使探针面 pass 跨帧复用。
+        /// </summary>
+        private readonly CameraRendererCache rendererCache;
+
+        /// <summary>
         /// 本帧可见的实时探针，按探针实例 id 为键。由 <see cref="BeginFrame"/> 清除。
         /// </summary>
         private readonly Dictionary<int, ReflectionProbe> requests = new();
@@ -55,9 +60,11 @@ namespace HN.HNRP
         /// 初始化 <see cref="ReflectionProbeRenderer"/> 的新实例。
         /// </summary>
         /// <param name="pool">用于面渲染的相机池。</param>
-        public ReflectionProbeRenderer(ReflectionProbeCameraPool pool)
+        /// <param name="rendererCache">与主相机共用的渲染器缓存。</param>
+        public ReflectionProbeRenderer(ReflectionProbeCameraPool pool, CameraRendererCache rendererCache)
         {
             this.pool = pool;
+            this.rendererCache = rendererCache;
         }
 
         /// <summary>
@@ -326,7 +333,7 @@ namespace HN.HNRP
                     globalConstantBuffer,
                     GlobalPropertyIDs.ShaderVariablesGlobal);
 
-                var renderer = new CameraRenderer(cameraContext);
+                CameraRenderer renderer = rendererCache.GetOrCreate(camera, cameraContext);
                 renderer.Build(ReflectionProbeRenderUtils.SelectReflectionRenderGraph(asset, probe));
                 renderer.Render(renderGraph, context);
             }

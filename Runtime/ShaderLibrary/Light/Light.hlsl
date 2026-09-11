@@ -2,6 +2,7 @@
 #define HNRP_LIGHT_INCLUDED
 
 #include "../ClusterCulling/ClusterCullingLight.hlsl"
+#include "../Shadow/Shadow.hlsl"
 
 struct Light
 {
@@ -35,7 +36,7 @@ float3 GetViewDirectionWS(float3 positionWS)
     return normalize(GetCameraPositionWS().xyz - positionWS);
 }
 
-Light GetMainLight()
+Light GetMainLight(float3 positionWS)
 {
     int mainLightIndex = 0;
 #if CLUSTER_CULLING_LIGHT
@@ -47,7 +48,7 @@ Light GetMainLight()
     ZERO_INITIALIZE(Light, light);
     light.color = _LightDatasBuffer[mainLightIndex].color;
     light.directionWS = _LightDatasBuffer[mainLightIndex].directionWS;
-    light.shadowAttenuation = 1.0;
+    light.shadowAttenuation = GetShadowAttenuation((uint)mainLightIndex, positionWS, light.directionWS);
     light.distanceAttenuation = 1.0;
     light.renderingLayerMask = asuint(_LightDatasBuffer[mainLightIndex].renderingLayerMask);
 
@@ -80,6 +81,7 @@ Light GetAdditionalLight(uint lightIndex, float3 positionWS)
         }
     }
     light.renderingLayerMask = asuint(_LightDatasBuffer[lightIndex].renderingLayerMask);
+    light.shadowAttenuation = GetShadowAttenuation(lightIndex, positionWS, light.directionWS);
 
     return light;
 }

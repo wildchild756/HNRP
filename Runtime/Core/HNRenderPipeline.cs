@@ -49,7 +49,7 @@ namespace HN.HNRP
 
             SetSupportedRenderingFeatures();
 
-            reflectionProbeRenderer = new ReflectionProbeRenderer(new ReflectionProbeCameraPool());
+            reflectionProbeRenderer = new ReflectionProbeRenderer(new ReflectionProbeCameraPool(), cameraRendererCache);
 
             // 在构建任何渲染图前注册全部带 [Pass] 的 pass 类型。
             // Editor 用反射扫描程序集；Player 构建使用 PassRegistryGenerator
@@ -258,8 +258,9 @@ namespace HN.HNRP
                         globalConstantBuffer,
                         GlobalPropertyIDs.ShaderVariablesGlobal);
 
-                    // ── 创建 CameraRenderer，从模板构建，渲染 ──
-                    var cameraRenderer = new CameraRenderer(cameraContext);
+                    // ── 取（或创建）本相机缓存的 CameraRenderer，复用其 pass 列表 ──
+                    // pass 跨帧复用，其持有资源才能跨帧保留；模板变化时 Build 内部重建。
+                    CameraRenderer cameraRenderer = cameraRendererCache.GetOrCreate(camera, cameraContext);
                     cameraRenderer.Build(renderGraphAsset);
 
                     BeginCameraRendering(context, camera);
@@ -274,6 +275,9 @@ namespace HN.HNRP
 
             // ── 执行所有已记录的渲染图 pass ──
             renderGraph.EndFrame();
+
+            // ── 回收已销毁相机对应的渲染器（相机销毁后其 pass 资源随之释放）──
+            cameraRendererCache.RemoveDestroyed();
 
 #if UNITY_EDITOR
             // HNRP 物体渲染（DrawObjectPass）用 Y 翻转投影矩阵（renderIntoTexture=true），
@@ -419,6 +423,9 @@ namespace HN.HNRP
 
             reflectionProbeRenderer.Dispose();
 
+            // 释放全部缓存的相机渲染器（其 pass 持有资源，如阴影 atlas）。
+            cameraRendererCache.Dispose();
+
             ConstantBuffer.ReleaseAll();
         }
 
@@ -441,6 +448,13 @@ namespace HN.HNRP
         public override RenderPipelineGlobalSettings defaultSettings => globalSettings;
 
         private HNRenderPipelineGlobalSettings globalSettings;
+
+        /// <summary>
+        /// 按相机缓存的运行时渲染器。跨帧复用其 pass 列表，使 pass 持有的资源
+        /// （如阴影 atlas、驻留分配表）能跨帧存活；相机销毁或管线销毁时释放。
+        /// 主相机与反射探针面相机共用此缓存。
+        /// </summary>
+        private readonly CameraRendererCache cameraRendererCache = new();
 
         /// <summary>
         /// 保护一次性 <see cref="RTHandles.Initialize"/> 调用。细节见构造函数。

@@ -42,6 +42,14 @@ namespace HN.HNRP
         /// </summary>
         private Dictionary<uint, uint> blocks = new Dictionary<uint, uint>();
 
+        /// <summary>
+        /// key: entity 的 id
+        /// value: 该 entity 当前占据的 block 分配结果。分配时写入，<see cref="Release"/> 时移除。
+        /// 供跨帧复用（避免重复 <see cref="Allocate(ref Dictionary{uint, TextureAllocatorResult}, uint, int)"/>）
+        /// 以及释放时反查所在 slice / block 使用。
+        /// </summary>
+        private Dictionary<uint, TextureAllocatorResult> allocatedResults = new Dictionary<uint, TextureAllocatorResult>();
+
 
         public TextureAllocator(int textureResolution, int minBlockSize, int maxBlockSize, int sliceCount)
         {
@@ -97,6 +105,56 @@ namespace HN.HNRP
         }
 
 
+        /// <summary>
+        /// 判断指定 entity 当前是否占据一个 block。
+        /// </summary>
+        /// <param name="entityId">要查询的 entity id。</param>
+        /// <returns>占据时返回 <c>true</c>，否则返回 <c>false</c>。</returns>
+        public bool Contains(uint entityId)
+        {
+            return blocks.ContainsKey(entityId);
+        }
+
+
+        /// <summary>
+        /// 取回指定 entity 当前占据 block 的分配结果（供跨帧复用，避免重复分配）。
+        /// </summary>
+        /// <param name="entityId">要查询的 entity id。</param>
+        /// <param name="result">该 entity 的分配结果；未占据时为默认值。</param>
+        /// <returns>存在时返回 <c>true</c>，否则返回 <c>false</c>。</returns>
+        public bool TryGetResult(uint entityId, out TextureAllocatorResult result)
+        {
+            return allocatedResults.TryGetValue(entityId, out result);
+        }
+
+
+        /// <summary>
+        /// 释放指定 entity 占据的 block：清除对应 brick 占用位并移除记录。
+        /// 仅更新分配状态，不触碰 texture 内容（旧内容由后续绘制覆盖）。
+        /// </summary>
+        /// <param name="entityId">要释放的 entity id。</param>
+        /// <returns>该 entity 存在并被释放时返回 <c>true</c>，否则返回 <c>false</c>。</returns>
+        public bool Release(uint entityId)
+        {
+            if(!blocks.TryGetValue(entityId, out uint value))
+            {
+                return false;
+            }
+
+            int level = (int)((value >> 8) & 0xFu);
+            int blockBitCount = GetBlockBitCountByLevel(level);
+            if(allocatedResults.TryGetValue(entityId, out TextureAllocatorResult result))
+            {
+                int brickIndex = result.SliceIndex * sliceBrickCount + (int)result.BlockId;
+                SetBrickMaskByBlock(brickIndex / blockBitCount, blockBitCount, false);
+            }
+
+            blocks.Remove(entityId);
+            allocatedResults.Remove(entityId);
+            return true;
+        }
+
+
         private void Allocate(ref Dictionary<uint, TextureAllocatorResult> results, uint entityId, int size, int startBrickIndex, bool isReorg, Vector4 oldScaleOffset, int oldSliceIndex)
         {
             if(size < minBlockSize || size > maxBlockSize)
@@ -114,13 +172,16 @@ namespace HN.HNRP
                 if(IsBlockEmpty(selectedBlockBit))
                 {
                     blocks[entityId] = BuildBlockValue(true, i * blockBitCount, level);
-                    results[entityId] = new TextureAllocatorResult(){
+                    TextureAllocatorResult allocResult = new TextureAllocatorResult(){
                         ScaleOffset = GetScaleOffset(entityId), 
                         SliceIndex = GetSliceIndexByBrickIndex(i * blockBitCount),
+                        BlockId = (uint)((i * blockBitCount) % sliceBrickCount),
                         IsReorg = isReorg,
                         OldScaleOffset = oldScaleOffset,
                         OldSliceIndex = oldSliceIndex
                     };
+                    results[entityId] = allocResult;
+                    allocatedResults[entityId] = allocResult;
                     SetBrickMaskByBlock(i, blockBitCount, true);
                     break;
                 }
@@ -130,13 +191,16 @@ namespace HN.HNRP
                     List<(uint, int)> reorgEntities = GetReorgEntitiesByBlock(i * blockBitCount);
                     blocks[entityId] = BuildBlockValue(true, i * blockBitCount, level);
                     int sliceIndex = GetSliceIndexByBrickIndex(i * blockBitCount);
-                    results[entityId] = new TextureAllocatorResult(){
+                    TextureAllocatorResult allocResult = new TextureAllocatorResult(){
                         ScaleOffset = GetScaleOffset(entityId),
                         SliceIndex = sliceIndex,
+                        BlockId = (uint)((i * blockBitCount) % sliceBrickCount),
                         IsReorg = isReorg,
                         OldScaleOffset = oldScaleOffset,
                         OldSliceIndex = oldSliceIndex
                     };
+                    results[entityId] = allocResult;
+                    allocatedResults[entityId] = allocResult;
                     SetBrickMaskByBlock(i, blockBitCount, true);
 
                     for(int j = 0; j < reorgEntities.Count; j++)
@@ -347,6 +411,12 @@ namespace HN.HNRP
         public Vector4 ScaleOffset;
 
         public int SliceIndex;
+
+        /// <summary>
+        /// 该 block 在所在 slice 内的起始 brick 索引（Morton 码排列），取值 0..63。
+        /// 与 <see cref="ScaleOffset"/> 的 x/y 偏移一一对应。
+        /// </summary>
+        public uint BlockId;
 
         public bool IsReorg;
 
