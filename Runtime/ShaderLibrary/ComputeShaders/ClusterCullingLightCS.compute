@@ -71,19 +71,12 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
     uint3 clusterSize = uint3(asuint(int(_ClusterCullingLightParams1.x)), asuint(int(_ClusterCullingLightParams1.y)), asuint(int(_ClusterCullingLightParams1.z)));
     uint lightCount = asuint(int(_ClusterCullingLightParams1.w));
 
-    uint clusterCount = clusterSize.x * clusterSize.y * clusterSize.z;
-    uint headerIndex = ((id.x + 1) * (id.y + 1) * (id.z + 1) - 1) * wordsPerCluster;
-
-    _ClusterCullingLightMaskBuffer[headerIndex] = 0u;
-    for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
-    {
-        _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
-    }
-
+    // 越界线程必须在任何写入之前退出：线程组按 8 向上取整，
+    // id 可能 >= clusterSize（旧版用 > 判断且先清零，会越界写坏掩码缓冲）。
     if(
-        id.x > clusterSize.x
-        || id.y > clusterSize.y
-        || id.z > clusterSize.z
+        id.x >= clusterSize.x
+        || id.y >= clusterSize.y
+        || id.z >= clusterSize.z
     )
     {
         return;
@@ -92,6 +85,19 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
     uint clusterIndexZ = id.z;
     uint clusterIndexY = id.y;
     uint clusterIndexX = id.x;
+
+    // 线性簇索引：保证 (x,y,z) -> 索引为单射，避免不同簇共用 header / 掩码字。
+    uint clusterIndex =
+        clusterIndexX
+        + clusterIndexY * clusterSize.x
+        + clusterIndexZ * clusterSize.x * clusterSize.y;
+    uint headerIndex = clusterIndex * wordsPerCluster;
+
+    _ClusterCullingLightMaskBuffer[headerIndex] = 0u;
+    for(uint wordClearIndex = 0; wordClearIndex < wordsPerCluster; wordClearIndex++)
+    {
+        _ClusterCullingLightMaskBuffer[headerIndex + 1 + wordClearIndex] = 0u;
+    }
 
     // header中写入初始值
     uint header = 0;
@@ -102,11 +108,16 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
     float2 clusterMinMaxZVS;
     float zSize = pow(2, clusterSize.z);
     clusterMinMaxZVS.x = ((float)clusterIndexZ - clusterZScaleOffset.y) / clusterZScaleOffset.x;
-    clusterMinMaxZVS.x = isOrthographic ? pow(2, clusterMinMaxZVS.x) : clusterMinMaxZVS.x;
     clusterMinMaxZVS.y = ((float)clusterIndexZ + 1 - clusterZScaleOffset.y) / clusterZScaleOffset.x;
-    clusterMinMaxZVS.y = isOrthographic ? pow(2, clusterMinMaxZVS.y) : clusterMinMaxZVS.y;
-    clusterMinCS.z = mul(_ClusterCullingLightViewToClip, float4(0, 0, clusterMinMaxZVS.x, 1)).z;
-    clusterMaxCS.z = mul(_ClusterCullingLightViewToClip, float4(0, 0, clusterMinMaxZVS.y, 1)).z;
+    // 透视使用 log2 切片深度，需指数还原为真实 view 深度；正交为线性切片，不能取幂。
+    clusterMinMaxZVS.x = isOrthographic ? clusterMinMaxZVS.x : pow(2, clusterMinMaxZVS.x);
+    clusterMinMaxZVS.y = isOrthographic ? clusterMinMaxZVS.y : pow(2, clusterMinMaxZVS.y);
+    // 簇深度为 view 空间正距离，投影矩阵期望相机看向 -Z，故先取负再投影。
+    // 投影得到的是齐次裁剪坐标，必须除以 w 才是 NDC z；直接用 .z 会让反投影深度错误。
+    float4 clipMinZ = mul(_ClusterCullingLightViewToClip, float4(0, 0, -clusterMinMaxZVS.x, 1));
+    float4 clipMaxZ = mul(_ClusterCullingLightViewToClip, float4(0, 0, -clusterMinMaxZVS.y, 1));
+    clusterMinCS.z = clipMinZ.z / clipMinZ.w;
+    clusterMaxCS.z = clipMaxZ.z / clipMaxZ.w;
     clusterMinCS.xy = float2((float)clusterIndexX / clusterSize.x, (float)clusterIndexY / clusterSize.y) * 2 - 1;
     clusterMaxCS.xy = float2((float)(clusterIndexX + 1) / clusterSize.x, (float)(clusterIndexY + 1) / clusterSize.y) * 2 - 1;
     clusterMinCS = max(clusterMinCS, float3(-1, -1, 0));
@@ -114,14 +125,16 @@ void ClusterCullingLightCS(uint3 id : SV_DispatchThreadID)
 
     // 计算当前cluster在world space下的AABB
     float3 clusterMinWS = float3(FLT_MAX, FLT_MAX, FLT_MAX);
-    float3 clusterMaxWS = float3(FLT_MIN, FLT_MIN, FLT_MIN);
+    float3 clusterMaxWS = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
     for(uint pointIndex = 0; pointIndex < 8; pointIndex++)
     {
         float3 pointCS;
         pointCS.x = (pointIndex >> 2 & 1) == 1 ? clusterMaxCS.x : clusterMinCS.x;
         pointCS.y = (pointIndex >> 1 & 1) == 1 ? clusterMaxCS.y : clusterMinCS.y;
         pointCS.z = (pointIndex & 1) == 1 ? clusterMaxCS.z : clusterMinCS.z;
-        float3 pointWS = mul(_ClusterCullingLightClipToWorld, float4(pointCS, 1)).xyz;
+        // clipToWorld 是透视矩阵的逆，结果为齐次坐标，必须除以 w 才是世界坐标。
+        float4 pointWSH = mul(_ClusterCullingLightClipToWorld, float4(pointCS, 1));
+        float3 pointWS = pointWSH.xyz / pointWSH.w;
         clusterMinWS = min(clusterMinWS, pointWS);
         clusterMaxWS = max(clusterMaxWS, pointWS);
     }

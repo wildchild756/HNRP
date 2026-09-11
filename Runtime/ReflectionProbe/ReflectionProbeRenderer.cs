@@ -224,13 +224,22 @@ namespace HN.HNRP
             HNRenderPipelineAsset asset,
             ReflectionProbe probe)
         {
-            if (!ShouldRenderThisFrame(probe))
+            // 先确保实时 cubemap 存在：Unity 在探针参数变化时会清空 realtimeTexture，
+            // 若只在渲染 cubemap 面时重建，则可能因时间切片（非更新帧）或 OnAwake
+            // 而长时间为 null，主相机 pass 会因 texture == null 丢弃整探针，
+            // 表现为调整参数时闪烁 / 调整完不渲染。
+            GetProbeTarget(probe, out bool created);
+
+            if (!ShouldRenderThisFrame(probe) && !created)
             {
                 return;
             }
 
             int probeId = probe.GetInstanceID();
-            int[] faces = GetFacesForProbe(probe, probeId);
+            // cubemap 刚被重建时必须一次性渲染全部面，否则新 RT 会短暂为空。
+            int[] faces = created
+                ? ReflectionProbeRenderUtils.AllFaces
+                : GetFacesForProbe(probe, probeId);
 
             foreach (int face in faces)
             {
@@ -284,7 +293,7 @@ namespace HN.HNRP
             int face)
         {
             Camera camera = pool.GetCamera();
-            RenderTexture target = GetProbeTarget(probe);
+            RenderTexture target = GetProbeTarget(probe, out _);
             ConfigureCamera(camera, probe, face, target);
 
             int probeId = probe.GetInstanceID();
@@ -368,13 +377,14 @@ namespace HN.HNRP
             camera.ResetProjectionMatrix();
         }
 
-        private static RenderTexture GetProbeTarget(ReflectionProbe probe)
+        private static RenderTexture GetProbeTarget(ReflectionProbe probe, out bool created)
         {
             var format = probe.hdr ? RenderTextureFormat.RGB111110Float : RenderTextureFormat.ARGB32;
             var existing = probe.realtimeTexture;
 
             // 现有 RT 尺寸/格式/维度均匹配才复用；否则说明 probe 的
-            // resolution/hdr 已变化，需按新参数重建 cubemap。
+            // resolution/hdr 已变化（或 Unity 在参数变化时清空了 realtimeTexture），
+            // 需按新参数重建 cubemap。
             // 旧 RT 不在此销毁：它归 ReflectionProbe 所有，由 Unity 在探针销毁
             // 时清理；在此 DestroyImmediate 会让探针持有悬空引用，导致
             // ReflectionProbe::ClearRenderTextures 崩溃。
@@ -384,6 +394,7 @@ namespace HN.HNRP
                 existing.height == probe.resolution &&
                 existing.format == format)
             {
+                created = false;
                 return existing;
             }
 
@@ -404,6 +415,7 @@ namespace HN.HNRP
             };
 
             probe.realtimeTexture = rt;
+            created = true;
             return rt;
         }
     }

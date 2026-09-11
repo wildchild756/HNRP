@@ -110,8 +110,11 @@ float CalculateProbeWeight(float3 positionWS, float4 probeBoxMin, float4 probeBo
 
 float CalculateProbeBoxWeight(float3 positionWS, float3 probeBoxMin, float3 probeBoxMax, float blendDistance)
 {
-    float3 weightDir = max(saturate(positionWS - probeBoxMin.xyz - blendDistance), saturate(probeBoxMax.xyz - positionWS - blendDistance));
-    return saturate(max(weightDir.x, max(weightDir.y, weightDir.z)));
+    // 盒外向外的衰减权重：盒内（含盒面）为 1，盒外 blendDistance 处衰减到 0。
+    // 影响范围 = box + blendDistance，与探针剔除所用的外扩包围盒一致。
+    float3 outside = max(probeBoxMin - positionWS, positionWS - probeBoxMax);
+    float outsideDistance = max(outside.x, max(outside.y, outside.z));
+    return saturate(1.0 - outsideDistance / max(blendDistance, 1e-6));
 }
 
 half CalculateProbeVolumeSqrMagnitude(float4 probeBoxMin, float4 probeBoxMax)
@@ -165,7 +168,11 @@ half3 CalculateIrradianceFromReflectionProbes(half3 reflectVector, float3 positi
             totalWeight += probeWeight;
         }
     }
-    irradiance = totalWeight > 0.0f ? irradiance / totalWeight : 0/* TODO:global reflection probe */;
+    // 仅在权重之和超过 1 时才归一化（避免多探针叠加过亮）。
+    // 权重 <= 1 时保留权重本身，使单探针能按 blendDistance 平滑衰减；
+    // 若像原来那样无条件除以 totalWeight，单探针的权重会被约掉，
+    // 表现为只有外扩范围、没有过渡衰减（硬边）。
+    irradiance = totalWeight > 0.0f ? irradiance / max(totalWeight, 1.0f) : 0/* TODO:global reflection probe */;
 #else
     irradiance = float3(0, 0, 0);
 #endif

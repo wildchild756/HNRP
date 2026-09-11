@@ -742,14 +742,17 @@ namespace HN.HNRP.Editor
                 EditorGUIUtility.TrTextContent("Far")
             };
             public static GUIContent resolutionText = EditorGUIUtility.TrTextContent("Resolution", "The resolution of the cubemap.");
-            public static int[] resolutionValues = new int[6] { 128, 256, 512, 1024, 2048, 4096 };
+            // 图集布局支持的分辨率层级为 128..2048（见
+            // ClusterCullingReflectionProbePass.AtlasLevelForResolution）。
+            // 两个数组必须等长且一一对应，否则 IntPopup 会显示错位甚至索引越界。
+            public static int[] resolutionValues = new int[5] { 128, 256, 512, 1024, 2048 };
             public static GUIContent[] resolutionOptionsText = new[]
             {
+                EditorGUIUtility.TrTextContent("Resolution: 128"),
                 EditorGUIUtility.TrTextContent("Resolution: 256"),
                 EditorGUIUtility.TrTextContent("Resolution: 512"),
                 EditorGUIUtility.TrTextContent("Resolution: 1024"),
                 EditorGUIUtility.TrTextContent("Resolution: 2048"),
-                EditorGUIUtility.TrTextContent("Resolution: 4096"),
             };
 
             public static GUIContent renderSettingsHeader = EditorGUIUtility.TrTextContent("Render Settings");

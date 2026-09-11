@@ -186,8 +186,6 @@ namespace HN.HNRP
                 int2 screenResolution =
                     math.int2(camera.pixelWidth, camera.pixelHeight);
                 int3 clusterSize = GetClusterSize(screenResolution);
-                int clusterCount =
-                    clusterSize.x * clusterSize.y * clusterSize.z;
                 float2 clusterZScaleOffset = GetClusterZScaleOffset(
                     clusterSize,
                     camera.orthographic,
@@ -220,11 +218,14 @@ namespace HN.HNRP
                     mainLightIndex;
 
                 // 相机矩阵
-                Matrix4x4 clipToView = camera.projectionMatrix;
-                Matrix4x4 viewToClip = camera.projectionMatrix.inverse;
+                // HNRP 所有 pass 均经 RenderGraph 渲染，内部总是渲染到渲染纹理，
+                // 因此 renderIntoTexture 恒为 true，需使用 GPU 投影（z 在 [0,1]）。
+                Matrix4x4 gpuProj = GL.GetGPUProjectionMatrix(
+                    camera.projectionMatrix, true);
+                Matrix4x4 clipToView = gpuProj.inverse;
+                Matrix4x4 viewToClip = gpuProj;
                 Matrix4x4 clipToWorld =
-                    (camera.worldToCameraMatrix * camera.projectionMatrix)
-                    .inverse;
+                    (gpuProj * camera.worldToCameraMatrix).inverse;
 
                 // ── 把每帧值存到池化 pass data 上，
                 // 使渲染函数闭包只捕获 `this`（零分配）──
@@ -289,16 +290,17 @@ namespace HN.HNRP
                             PropertyIDs.cullingClipToWorldMatrix,
                             data.clipToWorld);
 
-                        int threadGroup = (clusterCount + 63) / 64;
-                        int threadGroupY =
-                            (threadGroup + data.clusterSize.y - 1) / data.clusterSize.y;
+                        // 按 3D 簇网格派发：numthreads(8,8,1)，X/Y 覆盖屏幕簇，
+                        // Z 每个线程组覆盖一个深度切片（id.z 即簇索引 z）。
+                        int threadGroupX = (data.clusterSize.x + 7) / 8;
+                        int threadGroupY = (data.clusterSize.y + 7) / 8;
 
                         ctx.cmd.DispatchCompute(
                             data.clusterCullingLightCS,
                             data.clusterCullingLightKernel,
-                            data.clusterSize.y,
+                            threadGroupX,
                             threadGroupY,
-                            1);
+                            data.clusterSize.z);
 
                         ConstantBuffer.PushGlobal(
                             ctx.cmd,
@@ -353,6 +355,14 @@ namespace HN.HNRP
             screenResolution = math.max(
                 screenResolution, new int2(MIN_CLUSTER_SCREEN_RESOLUTION));
 
+            // 每个簇在掩码缓冲中占 wordsPerCluster 个 uint（header + 每 32 灯一个字），
+            // 切片数必须由缓冲容量除以（每切片簇数 * 每簇字数）得出，
+            // 否则 compute 会写到缓冲末尾之外。
+            int maxLightOnScreen =
+                HNRenderPipelineAsset.MAX_DIRECTIONAL_LIGHT_ON_SCREEN
+                + HNRenderPipelineAsset.MAX_LOCAL_LIGHT_ON_SCREEN;
+            int wordsPerCluster = (maxLightOnScreen + 31) / 32 + 1;
+
             int2 clusterSizeXY = new int2(1, 1);
             int sliceCount = CLUSTER_MIN_Z_SLIZE;
             int tileWidth = 8 >> 1;
@@ -361,7 +371,8 @@ namespace HN.HNRP
                 tileWidth <<= 1;
                 clusterSizeXY = (screenResolution + tileWidth - 1) / Mathf.Max(1, tileWidth - 1);
                 int tileCountPerSlice = clusterSizeXY.x * clusterSizeXY.y;
-                sliceCount = MAX_CLUSTER_MASK_WORDS / Mathf.Max(1, tileCountPerSlice - 1);
+                sliceCount =
+                    MAX_CLUSTER_MASK_WORDS / (tileCountPerSlice * wordsPerCluster) - 1;
             }
             while (sliceCount < CLUSTER_MIN_Z_SLIZE || sliceCount > CLUSTER_MAX_Z_SLICE);
             return new int3(clusterSizeXY.x, clusterSizeXY.y, sliceCount);

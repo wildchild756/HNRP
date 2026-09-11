@@ -225,16 +225,19 @@ namespace HN.HNRP
                 var visibleProbes = cameraContext.VisibleReflectionProbes;
                 for (int i = 0; i < visibleProbes.Length; i++)
                 {
-                    ReflectionProbe probe = ReflectionProbeRenderUtils.GetReflectionProbe(visibleProbes[i]);
+                    UnityEngine.Rendering.VisibleReflectionProbe visibleProbe = visibleProbes[i];
+                    ReflectionProbe probe = ReflectionProbeRenderUtils.GetReflectionProbe(visibleProbe);
                     if (probe == null)
                     {
                         continue;
                     }
 
-                    // 烘焙模式使用探针的烘焙/自定义 cubemap；实时模式使用探针
-                    // 的持久实时 cubemap。时间切片只控制 cubemap 何时重渲染，
-                    // 不控制图集是否包含该探针，因此非刷新帧仍使用上次渲染的
-                    // cubemap，而不是丢弃该探针。
+                    // HNRP 自己管理实时探针的 cubemap（见 ReflectionProbeRenderer），
+                    // Unity 的 VisibleReflectionProbe.texture 对这类探针为空，
+                    // 因此仍按 mode 从 component 取纹理：
+                    //   Realtime -> realtimeTexture；
+                    //   Baked / Custom -> customBakedTexture。
+                    // 时间切片只控制 cubemap 何时重渲染，不影响图集是否包含该探针。
                     Texture texture;
                     if (ReflectionProbeRenderUtils.IsRealtimeProbe(probe))
                     {
@@ -291,10 +294,18 @@ namespace HN.HNRP
                     Bounds bounds = probe.bounds;
                     Vector4 scaleOffsetUV = GetTextureScaleOffsetWithoutPaddingInAtlas(scaleOffsetInt);
 
+                    // Unity 对反射探针的可见性剔除按 bounds 外扩 blendDistance 计算
+                    //（VisibleReflectionProbe 的收录范围就是 box + blendDistance）。
+                    // 逐簇剔除必须用同一个外扩后的包围盒：否则当原始 box 离开视锥、
+                    // 而 box + blendDistance 仍与视锥相交时，所有簇都会被清空，
+                    // 整个探针被错误剔除，表现为相机移动时的跳变。
+                    // 注意：shader 的权重盒仍用原始 bounds（boxMin/boxMax），
+                    // 外扩只用于剔除包围盒。
+                    Vector3 cullExtents = bounds.extents + Vector3.one * probe.blendDistance;
                     cullingDatas[probeIndex] = new ReflectionProbeData4CS
                     {
                         boundCenter = bounds.center,
-                        boundExtents = bounds.extents,
+                        boundExtents = cullExtents,
                     };
 
                     sampleDatas[probeIndex] = new ClusterCullingReflectionProbeDatas
@@ -417,7 +428,7 @@ namespace HN.HNRP
                     camera.projectionMatrix, true);
                 Matrix4x4 clipToView = gpuProj.inverse;
                 Matrix4x4 viewToClip = gpuProj;
-                Matrix4x4 clipToWorld = (camera.worldToCameraMatrix * gpuProj).inverse;
+                Matrix4x4 clipToWorld = (gpuProj * camera.worldToCameraMatrix).inverse;
 
                 // ── 每帧参数（经 PushGlobal 上传到 shader）──
 
@@ -618,13 +629,20 @@ namespace HN.HNRP
 
         /// <summary>
         /// 把探针分辨率映射为图集层级：<c>0..4</c> 分别对应每探针
-        /// <c>4096..256</c> 纹素。不支持的分辨率返回 <c>-1</c>。
+        /// <c>4096..256</c> 纹素。分辨率小于等于 0 时返回 <c>-1</c>；
+        /// 超出层级范围（如 4096）时钳制到最近可用层级，
+        /// 避免整个探针被静默剔除。
         /// </summary>
         private static int AtlasLevelForResolution(int resolution)
         {
+            if (resolution <= 0)
+            {
+                return -1;
+            }
+
             int log2 = (int)(Mathf.Log(resolution, 2) + 0.5f);
             int level = 11 - log2;
-            return level >= 0 && level < AtlasResolutionLevels ? level : -1;
+            return Mathf.Clamp(level, 0, AtlasResolutionLevels - 1);
         }
 
         /// <summary>
