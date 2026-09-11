@@ -38,15 +38,16 @@ namespace HN.HNRP
         public List<Pass> Passes { get; private set; } = new();
 
         /// <summary>
-        /// pass 执行期间引用的每相机渲染上下文。
-        /// </summary>
-        public CameraContext Context { get; set; }
-
-        /// <summary>
         /// 当前 <see cref="RenderGraphAsset"/> 模板。首次调用
         /// <see cref="Build"/> 或 <see cref="Reset"/> 之前为 <c>null</c>。
         /// </summary>
         public RenderGraphAsset CurrentTemplate { get; private set; }
+
+        /// <summary>
+        /// 当前 pass 列表对应的模板参数修订号。与
+        /// <see cref="RenderGraphAsset.ParameterRevision"/> 不一致时需重建 pass。
+        /// </summary>
+        private int CurrentRevision { get; set; }
 
         /// <summary>
         /// 通过 <see cref="Connect"/> 添加的 slot 连接的内部存储。
@@ -57,13 +58,12 @@ namespace HN.HNRP
         /// <summary>
         /// 初始化 <see cref="CameraRenderer"/> 的新实例。
         /// </summary>
-        /// <param name="context">
-        /// 每相机渲染上下文。可为 <c>null</c>（调用方稍后设置，或在
-        /// <see cref="Render"/> 中提供）。
-        /// </param>
-        public CameraRenderer(CameraContext context)
+        /// <remarks>
+        /// 每帧渲染上下文不再由渲染器持有：<see cref="Render"/> 以参数接收
+        /// <see cref="CameraContext"/>，避免跨帧悬挂引用已释放的帧上下文。
+        /// </remarks>
+        public CameraRenderer()
         {
-            Context = context;
         }
 
         /// <summary>
@@ -84,9 +84,13 @@ namespace HN.HNRP
                 throw new ArgumentNullException(nameof(template));
             }
 
-            // 已为同一模板构建过：复用已有 pass 实例。
+            // 已为同一模板、同一参数修订构建过：复用已有 pass 实例。
             // pass 跨帧存活，其持有的资源（如阴影 atlas、驻留分配表）才能跨帧保留。
-            if (CurrentTemplate == template && Passes.Count > 0)
+            // 参数缓存 / 设置变化会自增 ParameterRevision，据此强制重建，
+            // 避免仅比较模板引用相等导致参数改动不生效。
+            if (CurrentTemplate == template
+                && Passes.Count > 0
+                && CurrentRevision == template.ParameterRevision)
             {
                 return;
             }
@@ -94,7 +98,8 @@ namespace HN.HNRP
             DisposePasses();
 
             CurrentTemplate = template;
-            Passes = template.Build(this) ?? new List<Pass>();
+            CurrentRevision = template.ParameterRevision;
+            Passes = template.Build() ?? new List<Pass>();
 
             WireManualConnections();
         }
@@ -245,10 +250,7 @@ namespace HN.HNRP
         /// 为当前帧执行全部启用 pass。
         /// </summary>
         /// <param name="renderGraph">要记录命令的渲染图。</param>
-        /// <param name="context">
-        /// 当前帧的 ScriptableRenderContext，更新 <see cref="Context"/> 上的
-        /// <see cref="CameraContext.Context"/>。
-        /// </param>
+        /// <param name="context">当前帧的每相机渲染上下文（纯帧级，不在本类留存）。</param>
         /// <remarks>
         /// <para><b>每个 pass 的执行顺序：</b></para>
         /// <list type="number">
@@ -267,14 +269,8 @@ namespace HN.HNRP
         /// 其资源须跨帧保留；仅在重建模板或 <see cref="Dispose"/> 时释放。
         /// </para>
         /// </remarks>
-        public void Render(RenderGraph renderGraph, ScriptableRenderContext context)
+        public void Render(RenderGraph renderGraph, CameraContext context)
         {
-            // 用当前帧的 ScriptableRenderContext 更新相机上下文。
-            if (Context != null)
-            {
-                Context.Context = context;
-            }
-
             // ── 执行每个启用 pass ──
             foreach (Pass pass in Passes)
             {
@@ -284,7 +280,7 @@ namespace HN.HNRP
                 }
 
                 pass.ResetSlotHandles();
-                pass.PreRecord(CurrentTemplate, Context);
+                pass.PreRecord(CurrentTemplate, context);
                 pass.Record(renderGraph);
             }
         }
@@ -311,6 +307,7 @@ namespace HN.HNRP
 
             Passes.Clear();
             CurrentTemplate = null;
+            CurrentRevision = 0;
         }
 
         /// <summary>

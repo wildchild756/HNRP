@@ -25,6 +25,25 @@ namespace HN.HNRP
             UpdateFrustum();
         }
 
+        void OnDestroy()
+        {
+            // renderer 由本附加数据组件持有，其生命周期 = 相机组件生命周期。
+            // 组件销毁时释放该相机的 pass 资源（如阴影 atlas、驻留分配表）。
+            cameraRenderer?.Dispose();
+            cameraRenderer = null;
+        }
+
+        /// <summary>
+        /// 获取本相机持有的运行时 <see cref="CameraRenderer"/>；不存在时创建。
+        /// renderer 跨帧存活，使 pass 实例及其拥有的持久资源（如阴影 atlas）
+        /// 随相机保留。<see cref="IsEnabled"/> 等动态开关也因实例持久而跨帧生效。
+        /// </summary>
+        /// <returns>本相机的运行时渲染器。</returns>
+        internal CameraRenderer GetOrCreateRenderer()
+        {
+            return cameraRenderer ??= new CameraRenderer();
+        }
+
         unsafe public void UpdateCameraGlobalConstantBuffer(ref GlobalConstantBuffer globalConstantBuffer)
         {
             globalConstantBuffer._ScreenSize = new Vector4(BuiltinCamera.scaledPixelWidth, BuiltinCamera.scaledPixelHeight, 1.0f / BuiltinCamera.scaledPixelWidth, 1.0f / BuiltinCamera.scaledPixelHeight);
@@ -193,6 +212,13 @@ namespace HN.HNRP
 
         [SerializeField]
         private bool clearDepth = true;
+
+        /// <summary>
+        /// 本相机的运行时渲染器。运行时状态，不序列化。
+        /// 由 <see cref="GetOrCreateRenderer"/> 懒创建，<see cref="OnDestroy"/> 释放。
+        /// </summary>
+        [System.NonSerialized]
+        private CameraRenderer cameraRenderer;
 
 
 

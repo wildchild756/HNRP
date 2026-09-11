@@ -117,25 +117,22 @@ namespace HN.HNRP
         public override void Record(RenderGraph renderGraph)
         {
 #if UNITY_EDITOR
+            // ── 预检：必须在 AddRenderPass 之前完成 ──
+            // 输入不可用时直接跳过本帧、不产生 pass，避免执行期缺少 RenderFunc。
+            // 只跳过本帧，不改动 IsEnabled（外部动态开关）。
             if (ColorTargetSlot == null
                 || cameraContext == null
-                || !ColorTargetSlot.IsConnected)
+                || !ColorTargetSlot.IsConnected
+                || !ColorTargetSlot.HasHandle)
             {
-                IsEnabled = false;
                 return;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera == null || camera.cameraType != CameraType.SceneView)
             {
-                IsEnabled = false;
                 return;
             }
-
-            using var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>(
-                PassName, out var passData);
-
-            builder.AllowPassCulling(false);
 
             // ── 输入 slot：使用上游颜色目标（共享纹理模型）──
 
@@ -144,7 +141,6 @@ namespace HN.HNRP
             // 防护无效的上游链（如某帧裁剪失败使生产 pass 跳过记录）。
             if (!colorTarget.IsValid())
             {
-                IsEnabled = false;
                 return;
             }
 
@@ -154,6 +150,11 @@ namespace HN.HNRP
             {
                 ColorTargetOutputSlot.SetHandle(colorTarget);
             }
+
+            using var builder = renderGraph.AddRenderPass<EditorWireOverlayPassData>(
+                PassName, out var passData);
+
+            builder.AllowPassCulling(false);
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
 

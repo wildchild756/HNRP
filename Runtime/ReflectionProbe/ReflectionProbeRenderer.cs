@@ -36,11 +36,6 @@ namespace HN.HNRP
         private readonly ReflectionProbeCameraPool pool;
 
         /// <summary>
-        /// 主相机与探针面共用的渲染器缓存，使探针面 pass 跨帧复用。
-        /// </summary>
-        private readonly CameraRendererCache rendererCache;
-
-        /// <summary>
         /// 本帧可见的实时探针，按探针实例 id 为键。由 <see cref="BeginFrame"/> 清除。
         /// </summary>
         private readonly Dictionary<int, ReflectionProbe> requests = new();
@@ -60,11 +55,9 @@ namespace HN.HNRP
         /// 初始化 <see cref="ReflectionProbeRenderer"/> 的新实例。
         /// </summary>
         /// <param name="pool">用于面渲染的相机池。</param>
-        /// <param name="rendererCache">与主相机共用的渲染器缓存。</param>
-        public ReflectionProbeRenderer(ReflectionProbeCameraPool pool, CameraRendererCache rendererCache)
+        public ReflectionProbeRenderer(ReflectionProbeCameraPool pool)
         {
             this.pool = pool;
-            this.rendererCache = rendererCache;
         }
 
         /// <summary>
@@ -209,7 +202,10 @@ namespace HN.HNRP
         }
 
         /// <summary>
-        /// 释放渲染器及其相机池。
+        /// 释放渲染器及其相机池。**不**销毁探针的实时 cubemap：该
+        /// <see cref="RenderTexture"/> 归 <see cref="ReflectionProbe"/> 所有，
+        /// 由 Unity 在探针销毁时统一清理；在此销毁会导致探针持有悬空引用，
+        /// 进而在场景恢复 / 退出 Play 时于 ReflectionProbe::ClearRenderTextures 崩溃。
         /// </summary>
         public void Dispose()
         {
@@ -333,9 +329,10 @@ namespace HN.HNRP
                     globalConstantBuffer,
                     GlobalPropertyIDs.ShaderVariablesGlobal);
 
-                CameraRenderer renderer = rendererCache.GetOrCreate(camera, cameraContext);
+                CameraRenderer renderer =
+                    camera.GetHNRPAdditionalCameraData().GetOrCreateRenderer();
                 renderer.Build(ReflectionProbeRenderUtils.SelectReflectionRenderGraph(asset, probe));
-                renderer.Render(renderGraph, context);
+                renderer.Render(renderGraph, cameraContext);
             }
 
             cameraContext.Dispose();
@@ -378,6 +375,9 @@ namespace HN.HNRP
 
             // 现有 RT 尺寸/格式/维度均匹配才复用；否则说明 probe 的
             // resolution/hdr 已变化，需按新参数重建 cubemap。
+            // 旧 RT 不在此销毁：它归 ReflectionProbe 所有，由 Unity 在探针销毁
+            // 时清理；在此 DestroyImmediate 会让探针持有悬空引用，导致
+            // ReflectionProbe::ClearRenderTextures 崩溃。
             if (existing != null &&
                 existing.dimension == TextureDimension.Cube &&
                 existing.width == probe.resolution &&

@@ -88,18 +88,45 @@ namespace HN.HNRP
         private List<Pass> passParameterCache = new();
 
         /// <summary>
+        /// 参数缓存修订号。任何对参数缓存或渲染图设置的成功修改都会自增，
+        /// 供运行时判断是否需要重建已构建的 pass 列表。
+        /// 仅比较模板引用相等无法感知同一资源上的参数改动，故用修订号兜底。
+        /// </summary>
+        [SerializeField]
+        private int parameterRevision;
+
+        /// <summary>
         /// 获取本资产指向的模板标识。被序列化，使运行时（Resources.Load）
         /// 能与编辑器解析到同一份构建代码。
         /// </summary>
         public RenderGraphKind Kind => kind;
 
         /// <summary>
-        /// 获取或设置渲染图设置。
+        /// 获取或设置渲染图设置。写入时自增参数修订号，使运行时重建 pass 列表。
         /// </summary>
         public RenderGraphSettings Settings
         {
             get => settings;
-            set => settings = value;
+            set
+            {
+                settings = value;
+                parameterRevision++;
+            }
+        }
+
+        /// <summary>
+        /// 获取参数缓存修订号。修改参数缓存 / 设置后自增，运行时据此判断
+        /// 是否重建已构建的 pass 列表。
+        /// </summary>
+        public int ParameterRevision => parameterRevision;
+
+        /// <summary>
+        /// 自增参数修订号。供编辑器在经 <see cref="UnityEditor.SerializedObject"/>
+        /// 提交参数缓存改动后调用（该路径不经过本类的公共写方法）。
+        /// </summary>
+        public void BumpParameterRevision()
+        {
+            parameterRevision++;
         }
 
         /// <summary>
@@ -112,6 +139,7 @@ namespace HN.HNRP
         {
             kind = templateKind;
             settings = templateSettings;
+            parameterRevision++;
         }
 
         /// <summary>
@@ -171,6 +199,7 @@ namespace HN.HNRP
 
             RemoveParameterOverride(parameterOverride.GetType(), parameterOverride.PassName);
             passParameterCache.Add(parameterOverride);
+            parameterRevision++;
         }
 
         /// <summary>
@@ -189,6 +218,7 @@ namespace HN.HNRP
                     && cached.PassName == passName)
                 {
                     passParameterCache.RemoveAt(i);
+                    parameterRevision++;
                     return true;
                 }
             }
@@ -201,14 +231,11 @@ namespace HN.HNRP
         /// <see cref="Pass"/> 列表。每次调用都会产生全新的 pass 实例，并由
         /// <see cref="RenderGraphBuilder"/> 完成声明、连线与排序；只返回启用 pass。
         /// </summary>
-        /// <param name="renderer">
-        /// 将拥有这些 pass 的相机渲染器（未使用；仅为与调用方保持 API 兼容）。
-        /// </param>
         /// <returns>
         /// 包含全部启用 pass 的新 <see cref="List{Pass}"/>；
         /// 未配置模板标识时返回空列表。
         /// </returns>
-        public List<Pass> Build(object renderer)
+        public List<Pass> Build()
         {
             RenderGraphTemplate template = RenderGraphTemplates.Get(kind);
             if (template == null)

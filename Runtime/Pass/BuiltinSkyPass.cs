@@ -106,11 +106,16 @@ namespace HN.HNRP
         /// </remarks>
         public override void Record(RenderGraph renderGraph)
         {
+            // ── 预检：必须在 AddRenderPass 之前完成 ──
+            // 任一必需输入不可用（未连接 / 无有效句柄）时直接跳过本帧、不产生渲染图
+            // pass。若在 AddRenderPass 之后 return，执行期会抛
+            // "RenderPass ... was not provided with an execute function"。
+            // 这里只跳过本帧，不改动 IsEnabled（IsEnabled 是外部动态开关）。
             if (ColorTargetSlot == null || DepthTargetSlot == null
                 || cameraContext == null
-                || !ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected)
+                || !ColorTargetSlot.IsConnected || !DepthTargetSlot.IsConnected
+                || !ColorTargetSlot.HasHandle || !DepthTargetSlot.HasHandle)
             {
-                IsEnabled = false;
                 return;
             }
 
@@ -118,14 +123,8 @@ namespace HN.HNRP
                 || cameraContext.Camera.clearFlags != CameraClearFlags.Skybox
                 || RenderSettings.skybox == null)
             {
-                IsEnabled = false;
                 return;
             }
-
-            using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
-                PassName, out var passData);
-
-            builder.AllowPassCulling(false);
 
             // ── 输入 slot：使用上游颜色 / 深度目标（共享纹理模型）──
 
@@ -133,10 +132,8 @@ namespace HN.HNRP
             TextureHandle depthTarget = DepthTargetSlot.ReadHandle();
 
             // 防护无效的上游链（如某帧裁剪失败使生产 pass 跳过记录）。
-            // 跳过本 pass，而不是绑定无效句柄（后者会在渲染图执行期抛错）。
             if (!colorTarget.IsValid() || !depthTarget.IsValid())
             {
-                IsEnabled = false;
                 return;
             }
 
@@ -151,6 +148,11 @@ namespace HN.HNRP
             {
                 DepthTargetOutputSlot.SetHandle(depthTarget);
             }
+
+            using var builder = renderGraph.AddRenderPass<BuiltinSkyPassData>(
+                PassName, out var passData);
+
+            builder.AllowPassCulling(false);
 
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);

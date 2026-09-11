@@ -100,12 +100,12 @@ namespace HN.HNRP
             if (ClusterCullingLightMaskBufferSlot == null
                 || LightDatasBufferSlot == null)
             {
-                IsEnabled &= false;
+                return;
             }
 
             if (cameraContext == null)
             {
-                IsEnabled &= false;
+                return;
             }
 
             ComputeShader clusterCullingLightCS =
@@ -115,13 +115,13 @@ namespace HN.HNRP
                 Debug.LogError(
                     "Cluster Culling Light Compute Shader 为 null。 " +
                     "请确保已在 HNRenderPipelineRuntimeResources 中赋值。");
-                IsEnabled &= false;
+                return;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera == null)
             {
-                IsEnabled &= false;
+                return;
             }
 
             using (var builder = renderGraph.AddRenderPass<ClusterCullingLightPassData>(
@@ -131,7 +131,9 @@ namespace HN.HNRP
 
                 // ── 输入：光照数据缓冲 ──
 
-                if (LightDatasBufferSlot?.IsConnected == true)
+                if (LightDatasBufferSlot != null
+                    && LightDatasBufferSlot.IsConnected
+                    && LightDatasBufferSlot.HasHandle)
                 {
                     passData.lightDatasBuffer = builder.ReadComputeBuffer(
                         LightDatasBufferSlot.ReadHandle());
@@ -321,6 +323,12 @@ namespace HN.HNRP
         /// <returns>簇在 X、Y、Z 三个方向上的尺寸。</returns>
         private static int3 GetClusterSize(int2 screenResolution)
         {
+            // 退化分辨率（0 或极小，如窗口最小化 / 预览相机）会让 clusterSizeXY
+            // 坍缩为非正值，使 sliceCount 永远落在合法区间之外 → 死循环。
+            // 钳制到最小分辨率，保证 do-while 可终止且切片数合法。
+            screenResolution = math.max(
+                screenResolution, new int2(MIN_CLUSTER_SCREEN_RESOLUTION));
+
             int2 clusterSizeXY = new int2(1, 1);
             int sliceCount = CLUSTER_MIN_Z_SLIZE;
             int tileWidth = 8 >> 1;
@@ -331,8 +339,7 @@ namespace HN.HNRP
                 int tileCountPerSlice = clusterSizeXY.x * clusterSizeXY.y;
                 sliceCount = MAX_CLUSTER_MASK_WORDS / Mathf.Max(1, tileCountPerSlice - 1);
             }
-            while (sliceCount < CLUSTER_MIN_Z_SLIZE
-                   || sliceCount > CLUSTER_MAX_Z_SLICE);
+            while (sliceCount < CLUSTER_MIN_Z_SLIZE || sliceCount > CLUSTER_MAX_Z_SLICE);
             return new int3(clusterSizeXY.x, clusterSizeXY.y, sliceCount);
         }
 
@@ -487,6 +494,12 @@ namespace HN.HNRP
         private const int MAX_CLUSTER_MASK_WORDS = 4096 * 4;
         private const int CLUSTER_MIN_Z_SLIZE = 16;
         private const int CLUSTER_MAX_Z_SLICE = 128;
+
+        /// <summary>
+        /// cluster 网格计算的最小屏幕分辨率。低于此值（0、极小窗口、预览相机）
+        /// 会使切片数无法落入合法区间，故钳制以保证计算可终止。
+        /// </summary>
+        private const int MIN_CLUSTER_SCREEN_RESOLUTION = 128;
         private const string CLUSTER_CULLING_CS_KERNEL_NAME =
             "ClusterCullingLightCS";
 

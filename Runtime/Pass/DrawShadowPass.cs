@@ -21,8 +21,8 @@ namespace HN.HNRP
     /// <c>_ShadowLightDatas</c> / <c>_ShadowMapDatas</c> 两张结构化缓冲供着色器两级查表。
     /// </para>
     /// <para>
-    /// pass 由 <see cref="CameraRendererCache"/> 按相机复用，故 atlas / 分配器 / 驻留表
-    /// 可跨帧保留。
+    /// pass 由相机的 <see cref="HNAdditionalCameraData"/> 持有并随相机跨帧复用，
+    /// 故 atlas / 分配器 / 驻留表可跨帧保留。
     /// </para>
     /// </remarks>
     [Pass(PassNameConst)]
@@ -183,7 +183,6 @@ namespace HN.HNRP
         {
             if (cameraContext == null || !cameraContext.HasCullingResults)
             {
-                IsEnabled = false;
                 return;
             }
 

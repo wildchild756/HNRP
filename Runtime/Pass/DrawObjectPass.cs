@@ -250,14 +250,12 @@ namespace HN.HNRP
         {
             if (ColorTargetSlot == null || DepthTargetSlot == null || cameraContext == null)
             {
-                IsEnabled = false;
                 return;
             }
 
             Camera camera = cameraContext.Camera;
             if (camera == null)
             {
-                IsEnabled = false;
                 return;
             }
 
@@ -280,7 +278,6 @@ namespace HN.HNRP
 
             if (!colorTarget.IsValid() || !depthTarget.IsValid() || !rendererList.IsValid())
             {
-                IsEnabled = false;
                 return;
             }
 

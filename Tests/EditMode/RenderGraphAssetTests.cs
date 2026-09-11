@@ -490,7 +490,7 @@ namespace HN.HNRP.Tests
                 "AllowHDR should reflect the written value.");
 
             // 未配置资源的 Build 结果为空列表，绝不返回 null。
-            Assert.That(asset.Build(renderer: null), Is.Empty,
+            Assert.That(asset.Build(), Is.Empty,
                 "Build on an asset without a template kind should return an empty list.");
 
             Object.DestroyImmediate(asset);

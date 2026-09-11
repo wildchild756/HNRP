@@ -204,14 +204,12 @@ namespace HN.HNRP
                 Debug.LogError(
                     "Cluster Culling Reflection Probe Compute Shader 为 null。 " +
                     "请确保已在管线资源的 HNRenderPipelineRuntimeResources 中赋值。");
-                IsEnabled = false;
                 return;
             }
 
             if (cameraContext == null)
             {
                 Debug.LogError("CameraContext 为 null。必须在 Record 前调用 Initialize。");
-                IsEnabled = false;
                 return;
             }
 
@@ -322,40 +320,42 @@ namespace HN.HNRP
 
             probeCount = probeIndex;
 
+            // ── 输入/输出：反射探针图集（必须在 AddRenderPass 之前解析并校验）──
+            // 当输入句柄有效时消费所连接的输入图集；否则依据 AtlasParams
+            // 本地分配图集。blit 后的八面体数据写入其中，再暴露给下游 pass。
+            // 图集无效时直接跳过本帧、不产生 pass，避免执行期抛
+            // "was not provided with an execute function"。
+
+            TextureHandle atlasHandle;
+            if (ReflectionProbeAtlasInputSlot != null
+                && ReflectionProbeAtlasInputSlot.IsConnected
+                && ReflectionProbeAtlasInputSlot.HasHandle)
+            {
+                atlasHandle = ReflectionProbeAtlasInputSlot.ReadHandle();
+            }
+            else
+            {
+                atlasHandle = renderGraph.CreateTexture(
+                    atlasParams.CreateDesc("Reflection Probe Atlas", cameraContext.Camera));
+            }
+
+            if (!atlasHandle.IsValid())
+            {
+                return;
+            }
+
+            // 透传到输出 slot，供下游 pass 使用。
+            if (ReflectionProbeAtlasOutputSlot != null)
+            {
+                ReflectionProbeAtlasOutputSlot.SetHandle(atlasHandle);
+            }
+
             using (var builder = renderGraph.AddRenderPass<ClusterCullingReflectionProbePassData>(
                 PassName, out var passData))
             {
                 builder.AllowPassCulling(false);
 
-                // ── 输入/输出：反射探针图集 ──
-                // 当输入句柄有效时消费所连接的输入图集；否则依据 AtlasParams
-                // 本地分配图集。blit 后的八面体数据写入其中，再暴露给下游 pass。
-
-                TextureHandle atlasHandle;
-                if (ReflectionProbeAtlasInputSlot != null
-                    && ReflectionProbeAtlasInputSlot.IsConnected
-                    && ReflectionProbeAtlasInputSlot.HasHandle)
-                {
-                    atlasHandle = ReflectionProbeAtlasInputSlot.ReadHandle();
-                }
-                else
-                {
-                    atlasHandle = renderGraph.CreateTexture(
-                        atlasParams.CreateDesc("Reflection Probe Atlas", cameraContext.Camera));
-                }
-
-                if (!atlasHandle.IsValid())
-                {
-                    return;
-                }
-
                 passData.reflectionProbeAtlas = builder.WriteTexture(atlasHandle);
-
-                // 透传到输出 slot，供下游 pass 使用。
-                if (ReflectionProbeAtlasOutputSlot != null)
-                {
-                    ReflectionProbeAtlasOutputSlot.SetHandle(atlasHandle);
-                }
 
                 // ── 输出：掩码缓冲 ──
 
@@ -666,8 +666,20 @@ namespace HN.HNRP
         private const int ClusterMaxZSlice = 128;
         private const int ClusterMinZSlice = 16;
 
+        /// <summary>
+        /// cluster 网格计算的最小屏幕分辨率。低于此值（0、极小窗口、预览相机）
+        /// 会使 tileCountPerSlice 为 0 导致除零 / 死循环，故钳制。
+        /// </summary>
+        private const int MinClusterScreenResolution = 128;
+
         private static int3 GetClusterSize(int2 screenResolution)
         {
+            // 退化分辨率（0 或极小，如窗口最小化 / 预览相机）会让 clusterSizeXY
+            // 坍缩为非正值，使 tileCountPerSlice 为 0 → 除零 / 死循环。
+            // 钳制到最小分辨率，保证计算可终止且结果为合法正值。
+            screenResolution = math.max(
+                screenResolution, new int2(MinClusterScreenResolution));
+
             // 每个簇在掩码缓冲中存 wordsPerCluster 个 uint
             // （header + 每 32 个探针位一个字）。切片数量必须由掩码缓冲
             // 容量除以每簇字数得出，否则 compute shader 会写出缓冲末尾。

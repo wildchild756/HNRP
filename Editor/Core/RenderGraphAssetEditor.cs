@@ -75,7 +75,13 @@ namespace HN.HNRP.Editor
                 expandedStateDirty = false;
             }
 
-            serializedObject.ApplyModifiedProperties();
+            // 参数缓存 / 设置在面板中被修改时自增修订号，使运行时重建 pass 列表
+            // （运行时仅比较模板引用相等无法感知同一资源上的参数改动）。
+            if (serializedObject.ApplyModifiedProperties())
+            {
+                ((RenderGraphAsset)target).BumpParameterRevision();
+                EditorUtility.SetDirty(target);
+            }
         }
 
         #endregion
@@ -420,6 +426,7 @@ namespace HN.HNRP.Editor
             if (changed)
             {
                 serializedObject.ApplyModifiedProperties();
+                ((RenderGraphAsset)target).BumpParameterRevision();
                 EditorUtility.SetDirty(target);
             }
         }
@@ -513,6 +520,7 @@ namespace HN.HNRP.Editor
             cacheProp.GetArrayElementAtIndex(targetIndex).managedReferenceValue = cachePass;
 
             serializedObject.ApplyModifiedProperties();
+            ((RenderGraphAsset)target).BumpParameterRevision();
             EditorUtility.SetDirty(target);
         }
 

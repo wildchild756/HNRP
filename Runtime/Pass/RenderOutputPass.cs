@@ -84,13 +84,11 @@ namespace HN.HNRP
         {
             if (ColorTargetSlot == null || !ColorTargetSlot.IsConnected || cameraContext == null)
             {
-                IsEnabled = false;
                 return;
             }
 
             if (cameraContext.Camera == null)
             {
-                IsEnabled = false;
                 return;
             }
 

@@ -79,7 +79,7 @@ namespace HN.HNRP.Tests
             Assume.That(asset, Is.Not.Null,
                 "Test requires StandardGraph.asset to be loadable.");
 
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = asset.Build();
 
             Assert.That(result, Is.Not.Null,
                 "Build should return a non-null list.");
@@ -115,7 +115,7 @@ namespace HN.HNRP.Tests
             Assume.That(asset, Is.Not.Null,
                 "Test requires StandardGraph.asset to be loadable.");
 
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = asset.Build();
 
             Pass FindPass(string instanceName)
             {
@@ -207,7 +207,7 @@ namespace HN.HNRP.Tests
             Assume.That(asset, Is.Not.Null,
                 "Test requires StandardGraph.asset to be loadable.");
 
-            List<Pass> result = asset.Build(renderer: null);
+            List<Pass> result = asset.Build();
 
             int IndexOf(string name) => result.FindIndex(p => p.PassName == name);
 

@@ -141,18 +141,22 @@ namespace HN.HNRP
                 // 把每帧值存到池化 pass 数据上，使渲染函数闭包只捕获 `this`（零分配）。
                 passData.jobHandle = jobHandle;
                 passData.lightDatas = lightDatas;
+                passData.renderingLayerMasks = renderingLayerMasks;
 
                 builder.SetRenderFunc(
                     (BuildLightDataPassData data, RenderGraphContext ctx) =>
                     {
-                        if (!IsEnabled)
+                        data.jobHandle.Complete();
+
+                        if (IsEnabled)
                         {
-                            return;
+                            ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
                         }
 
-                        data.jobHandle.Complete();
-                        ctx.cmd.SetBufferData(data.lightDatasBuffer, data.lightDatas);
+                        // 两个 TempJob 原生数组在 job 完成后必须释放，
+                        // 否则超过 4 帧生命周期触发 JobTempAlloc 泄漏告警。
                         data.lightDatas.Dispose();
+                        data.renderingLayerMasks.Dispose();
                     });
             }
         }
@@ -186,6 +190,11 @@ namespace HN.HNRP
             /// 上传到 GPU 并在渲染函数内释放的打包光照数据数组。
             /// </summary>
             public NativeArray<LightData> lightDatas;
+
+            /// <summary>
+            /// job 读取的渲染层掩码数组；job 完成后在渲染函数内释放。
+            /// </summary>
+            public NativeArray<uint> renderingLayerMasks;
         }
 
         // ── Property IDs ──
