@@ -252,11 +252,14 @@ namespace HN.HNRP
         /// <param name="renderGraph">要记录命令的渲染图。</param>
         /// <param name="context">当前帧的每相机渲染上下文（纯帧级，不在本类留存）。</param>
         /// <remarks>
-        /// <para><b>每个 pass 的执行顺序：</b></para>
+        /// <para><b>执行顺序：</b></para>
         /// <list type="number">
-        ///   <item><see cref="Pass.ResetSlotHandles"/> —— 清空上一帧的输出 slot 句柄</item>
-        ///   <item><see cref="Pass.PreRecord"/> —— 用相机上下文加载资源</item>
-        ///   <item><see cref="Pass.Record"/> —— 记录渲染图命令</item>
+        ///   <item>先对<b>全部</b> pass（含被禁用者）调用
+        ///     <see cref="Pass.ResetSlotHandles"/> —— 清空上一帧的输出 slot 句柄，
+        ///     避免禁用 pass 的旧句柄被下游误读</item>
+        ///   <item>再对每个<b>启用</b>的 pass 依次调用
+        ///     <see cref="Pass.PreRecord"/>（用相机上下文加载资源）与
+        ///     <see cref="Pass.Record"/>（记录渲染图命令）</item>
         /// </list>
         /// <para>
         /// 刻意不在每帧调用 <see cref="Pass.SetupSlots"/>：slot 在
@@ -271,6 +274,14 @@ namespace HN.HNRP
         /// </remarks>
         public void Render(RenderGraph renderGraph, CameraContext context)
         {
+            // ── 重置全部 pass（含被禁用者）的输出 slot 句柄 ──
+            // 禁用 pass 不执行 Record，若不重置会残留上一帧句柄，被下游
+            // 消费方/全局绑定误判为「本帧已产出」。
+            for (int i = 0; i < Passes.Count; i++)
+            {
+                Passes[i].ResetSlotHandles();
+            }
+
             // ── 执行每个启用 pass ──
             foreach (Pass pass in Passes)
             {
@@ -279,7 +290,6 @@ namespace HN.HNRP
                     continue;
                 }
 
-                pass.ResetSlotHandles();
                 pass.PreRecord(CurrentTemplate, context);
                 pass.Record(renderGraph);
             }

@@ -78,6 +78,12 @@ namespace HN.HNRP
         public Pass OwnerPass { get; internal set; }
 
         /// <summary>
+        /// 对输入 slot：本输入连接到的输出 slot；未连接时为 <c>null</c>。
+        /// 对输出 slot：恒为 <c>null</c>。
+        /// </summary>
+        public PassSlot ConnectedOutput => connectedOutput;
+
+        /// <summary>
         /// 初始化 <see cref="PassSlot"/> 的新实例。
         /// </summary>
         /// <param name="slotName">

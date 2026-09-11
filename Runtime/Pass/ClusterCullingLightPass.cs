@@ -16,7 +16,7 @@ namespace HN.HNRP
     /// 输出每个簇的光照掩码缓冲，供前向渲染 pass 使用。
     /// </summary>
     [Pass(PassNameConst)]
-    public sealed class ClusterCullingLightPass : Pass
+    public sealed class ClusterCullingLightPass : Pass, IGlobalShaderResource
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。
@@ -312,6 +312,30 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             // 本 pass 不持有可释放资源。
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 已产出簇剔除光照掩码缓冲时，开启 <c>CLUSTER_CULLING_LIGHT</c> keyword 并
+        /// 绑定 <c>_ClusterCullingLightMaskBuffer</c>；否则关闭该 keyword，避免
+        /// 全局状态残留。
+        /// </remarks>
+        public void BindGlobalShaderResources(CommandBuffer cmd)
+        {
+            bool available = IsEnabled
+                && ClusterCullingLightMaskBufferSlot != null
+                && ClusterCullingLightMaskBufferSlot.HasHandle;
+
+            if (!available)
+            {
+                cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingLight);
+                return;
+            }
+
+            cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingLight);
+            cmd.SetGlobalBuffer(
+                PropertyIDs.clusterCullingLightMaskBuffer,
+                ClusterCullingLightMaskBufferSlot.ReadHandle());
         }
 
         // ── 辅助 ──

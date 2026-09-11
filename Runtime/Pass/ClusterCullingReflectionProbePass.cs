@@ -14,7 +14,7 @@ using UnityEngine.Rendering;
 namespace HN.HNRP
 {
     [Pass("Cluster Culling Probe")]
-    public sealed class ClusterCullingReflectionProbePass : Pass
+    public sealed class ClusterCullingReflectionProbePass : Pass, IGlobalShaderResource
     {
         /// <summary>
         /// 获取或设置反射探针图集的分配参数。
@@ -560,6 +560,40 @@ namespace HN.HNRP
             // 本 pass 不持有可释放资源。
             computeShader = null;
             cameraContext = null;
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 图集、掩码缓冲与探针数据缓冲三者齐备（且本 pass 启用）时，开启
+        /// <c>CLUSTER_CULLING_REFLECTION_PROBE</c> keyword 并绑定对应全局资源；
+        /// 否则关闭该 keyword，避免全局状态残留。
+        /// </remarks>
+        public void BindGlobalShaderResources(CommandBuffer cmd)
+        {
+            bool available = IsEnabled
+                && ReflectionProbeAtlasOutputSlot != null
+                && ReflectionProbeAtlasOutputSlot.HasHandle
+                && ClusterCullingReflectionProbeMaskBufferSlot != null
+                && ClusterCullingReflectionProbeMaskBufferSlot.HasHandle
+                && ClusterCullingReflectionProbeDatasBufferSlot != null
+                && ClusterCullingReflectionProbeDatasBufferSlot.HasHandle;
+
+            if (!available)
+            {
+                cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
+                return;
+            }
+
+            cmd.EnableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
+            cmd.SetGlobalTexture(
+                PropertyIDs.reflectionProbeAtlas,
+                ReflectionProbeAtlasOutputSlot.ReadHandle());
+            cmd.SetGlobalBuffer(
+                PropertyIDs.clusterCullingReflectionProbeMaskBuffer,
+                ClusterCullingReflectionProbeMaskBufferSlot.ReadHandle());
+            cmd.SetGlobalBuffer(
+                PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
+                ClusterCullingReflectionProbeDatasBufferSlot.ReadHandle());
         }
 
         // ── 暂存缓冲辅助 ──

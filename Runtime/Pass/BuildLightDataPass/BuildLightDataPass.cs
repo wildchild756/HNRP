@@ -18,7 +18,7 @@ namespace HN.HNRP
     /// 构建光照数据：把可见光打包进计算缓冲，供前向/簇剔除等 pass 消费。
     /// </summary>
     [Pass(PassNameConst)]
-    public sealed class BuildLightDataPass : Pass
+    public sealed class BuildLightDataPass : Pass, IGlobalShaderResource
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。与旧 <see cref="BuildLightDataPass.PassName"/> 一致。
@@ -165,6 +165,23 @@ namespace HN.HNRP
         public override void Cleanup()
         {
             // 除渲染函数内释放的每帧瞬时分配外，不持有其他可释放资源。
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 把已产出的 <c>_LightDatasBuffer</c> 设为全局；未产出（被禁用 / 提前退出）
+        /// 时不绑定。本 pass 不控制任何全局 keyword。
+        /// </remarks>
+        public void BindGlobalShaderResources(CommandBuffer cmd)
+        {
+            if (IsEnabled
+                && LightDatasBufferSlot != null
+                && LightDatasBufferSlot.HasHandle)
+            {
+                cmd.SetGlobalBuffer(
+                    PropertyIDs.LightDatasBuffer,
+                    LightDatasBufferSlot.ReadHandle());
+            }
         }
 
         // ── Pass data ──

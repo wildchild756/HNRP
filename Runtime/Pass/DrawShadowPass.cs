@@ -26,7 +26,7 @@ namespace HN.HNRP
     /// </para>
     /// </remarks>
     [Pass(PassNameConst)]
-    public sealed class DrawShadowPass : Pass
+    public sealed class DrawShadowPass : Pass, IGlobalShaderResource
     {
         /// <summary>
         /// 用于注册与识别的常量 pass 名。
@@ -241,6 +241,49 @@ namespace HN.HNRP
             allocatedResolution = 0;
             allocatedSliceCount = 0;
             cameraContext = null;
+        }
+
+        /// <inheritdoc />
+        /// <remarks>
+        /// 阴影图集产出有效时，开启 <c>SHADOW_MAP</c> keyword，并绑定两张结构化表、
+        /// 图集纹理与阴影参数常量缓冲；否则关闭该 keyword。
+        /// <c>SCREEN_SPACE_SHADOW_MAP</c> 目前没有生产者，一并关闭以避免残留。
+        /// </remarks>
+        public void BindGlobalShaderResources(CommandBuffer cmd)
+        {
+            bool available = IsEnabled
+                && ShadowMapOutputSlot != null
+                && ShadowMapOutputSlot.HasHandle
+                && shadowAtlas != null;
+
+            // 屏幕空间阴影暂无生产者，恒关闭，避免全局 keyword 残留。
+            cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
+
+            if (!available)
+            {
+                cmd.DisableShaderKeyword(GlobalKeywords.shadowMap);
+                return;
+            }
+
+            cmd.EnableShaderKeyword(GlobalKeywords.shadowMap);
+
+            if (shadowLightDatasBuffer != null)
+            {
+                cmd.SetGlobalBuffer(PropertyIDs.shadowLightDatas, shadowLightDatasBuffer);
+            }
+
+            if (shadowMapDatasBuffer != null)
+            {
+                cmd.SetGlobalBuffer(PropertyIDs.shadowMapDatas, shadowMapDatasBuffer);
+            }
+
+            cmd.SetGlobalTexture(
+                PropertyIDs.shadowMapArray,
+                (RenderTargetIdentifier)shadowAtlas);
+            ConstantBuffer.PushGlobal(
+                cmd,
+                shadowGlobalParams,
+                PropertyIDs.shadowMapParamsBuffer);
         }
 
         /// <summary>
@@ -965,21 +1008,17 @@ namespace HN.HNRP
 
         private void RenderShadows(RenderGraphContext ctx, DrawShadowPassData data, RTHandle atlas)
         {
-            // 上传两张表并全局绑定。
+            // 上传两张表。全局绑定（SetGlobalBuffer / SetGlobalTexture / PushGlobal）
+            // 由 BindGlobalShaderResources 在绘制前统一完成。
             if (shadowLightDatasBuffer != null && shadowLightDatasArray != null)
             {
                 ctx.cmd.SetBufferData(shadowLightDatasBuffer, shadowLightDatasArray);
-                ctx.cmd.SetGlobalBuffer(PropertyIDs.shadowLightDatas, shadowLightDatasBuffer);
             }
 
             if (shadowMapDatasBuffer != null && shadowMapDatasArray != null)
             {
                 ctx.cmd.SetBufferData(shadowMapDatasBuffer, shadowMapDatasArray);
-                ctx.cmd.SetGlobalBuffer(PropertyIDs.shadowMapDatas, shadowMapDatasBuffer);
             }
-
-            ctx.cmd.SetGlobalTexture(PropertyIDs.shadowMapArray, (RenderTargetIdentifier)atlas);
-            ConstantBuffer.PushGlobal(ctx.cmd, shadowGlobalParams, PropertyIDs.shadowMapParamsBuffer);
 
             EnsureClearMaterial();
 

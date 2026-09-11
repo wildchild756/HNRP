@@ -2,6 +2,7 @@
 // Copyright (c) HN. All rights reserved.
 // </copyright>
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
@@ -159,6 +160,12 @@ namespace HN.HNRP
 
         private CameraContext cameraContext;
 
+        /// <summary>
+        /// 全局资源绑定去重列表（复用以避免渲染循环分配）。
+        /// 同一生产者 pass 可能经多个输入 slot 连接，只应绑定一次。
+        /// </summary>
+        private readonly List<IGlobalShaderResource> boundProviders = new();
+
         // ── 构造函数 ──
 
         /// <summary>
@@ -301,63 +308,43 @@ namespace HN.HNRP
             passData.colorTarget = builder.UseColorBuffer(colorTarget, 0);
             passData.depthTarget = builder.UseDepthBuffer(depthTarget, DepthAccess.ReadWrite);
 
-            // ── 可选输入：各自按连接状态独立开关 ──
+            // ── 可选输入：声明读取以建立 RenderGraph 依赖 ──
+            // 句柄的实际全局绑定由各生产者 pass 经 IGlobalShaderResource 完成，
+            // 这里只需注册读取，保证生产者先于本 pass 执行且资源存活到绘制。
 
-            bool hasCascadeShadow = false;
-            bool isScreenSpaceShadow = false;
-            if (CascadeShadowMapSlot.IsConnected && CascadeShadowMapSlot.HasHandle)
+            if (CascadeShadowMapSlot?.IsConnected == true && CascadeShadowMapSlot.HasHandle)
             {
-                hasCascadeShadow = true;
-                if (ScreenSpaceShadowMapSlot.IsConnected && ScreenSpaceShadowMapSlot.HasHandle)
-                {
-                    isScreenSpaceShadow = true;
-                }
+                builder.ReadTexture(CascadeShadowMapSlot.ReadHandle());
             }
 
-            bool hasLightDatas = LightDatasSlot?.IsConnected == true && LightDatasSlot.HasHandle;
-            if (hasLightDatas)
+            if (LightDatasSlot?.IsConnected == true && LightDatasSlot.HasHandle)
             {
-                passData.lightDatasBuffer = builder.ReadComputeBuffer(
-                    LightDatasSlot.ReadHandle());
+                builder.ReadComputeBuffer(LightDatasSlot.ReadHandle());
             }
 
-            bool hasReflectionProbeAtlas = ReflectionProbeAtlasSlot?.IsConnected == true && ReflectionProbeAtlasSlot.HasHandle;
-            if (hasReflectionProbeAtlas)
+            if (ReflectionProbeAtlasSlot?.IsConnected == true && ReflectionProbeAtlasSlot.HasHandle)
             {
-                passData.reflectionProbeAtlas = builder.ReadTexture(
-                    ReflectionProbeAtlasSlot.ReadHandle());
+                builder.ReadTexture(ReflectionProbeAtlasSlot.ReadHandle());
             }
 
-            bool hasProbeMask = ProbeMaskSlot?.IsConnected == true && ProbeMaskSlot.HasHandle;
-            if (hasProbeMask)
+            if (ProbeMaskSlot?.IsConnected == true && ProbeMaskSlot.HasHandle)
             {
-                passData.probeMaskBuffer = builder.ReadComputeBuffer(
-                    ProbeMaskSlot.ReadHandle());
+                builder.ReadComputeBuffer(ProbeMaskSlot.ReadHandle());
             }
 
-            bool hasProbeDatas = ProbeDatasSlot?.IsConnected == true && ProbeDatasSlot.HasHandle;
-            if (hasProbeDatas)
+            if (ProbeDatasSlot?.IsConnected == true && ProbeDatasSlot.HasHandle)
             {
-                passData.probeDatasBuffer = builder.ReadComputeBuffer(
-                    ProbeDatasSlot.ReadHandle());
+                builder.ReadComputeBuffer(ProbeDatasSlot.ReadHandle());
             }
 
-            bool hasLightMask = LightMaskSlot?.IsConnected == true && LightMaskSlot.HasHandle;
-            if (hasLightMask)
+            if (LightMaskSlot?.IsConnected == true && LightMaskSlot.HasHandle)
             {
-                passData.lightMaskBuffer = builder.ReadComputeBuffer(
-                    LightMaskSlot.ReadHandle());
+                builder.ReadComputeBuffer(LightMaskSlot.ReadHandle());
             }
 
             // ── 渲染器列表：从解析后的句柄读取 ──
 
             passData.rendererList = builder.UseRendererList(rendererList);
-
-            bool enableProbeKeyword = hasReflectionProbeAtlas && hasProbeMask && hasProbeDatas;
-
-            passData.enableProbeKeyword = enableProbeKeyword;
-            passData.hasLightMask = hasLightMask;
-            passData.hasLightDatas = hasLightDatas;
 
             passData.viewMatrix = camera.worldToCameraMatrix;
             passData.projMatrix = GL.GetGPUProjectionMatrix(camera.projectionMatrix, true);
@@ -372,56 +359,14 @@ namespace HN.HNRP
 
                     ctx.cmd.SetViewProjectionMatrices(data.viewMatrix, data.projMatrix);
 
-                    if (!(camera.cameraType == CameraType.Preview && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME))
+                    // 全局 shader 资源绑定：由各生产者 pass 经
+                    // IGlobalShaderResource 自行绑定（buffer / texture / 常量 / keyword），
+                    // 消费者只负责在绘制前统一触发，无需知道具体生产者类型。
+                    // 相机图标预览相机（"Preview Camera"）不参与这些全局绑定。
+                    if (!(camera.cameraType == CameraType.Preview
+                        && camera.name == HNRenderPipelineUtils.PREVIEW_CAMERA_NAME))
                     {
-                        if (hasCascadeShadow)
-                        {
-                            ctx.cmd.EnableShaderKeyword(GlobalKeywords.shadowMap);
-                            if (isScreenSpaceShadow)
-                                ctx.cmd.EnableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
-                            else
-                                ctx.cmd.DisableShaderKeyword(GlobalKeywords.screenSpaceShadowMap);
-                        }
-                        else
-                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.shadowMap);
-
-                        if (data.enableProbeKeyword)
-                        {
-                            ctx.cmd.EnableShaderKeyword(
-                                GlobalKeywords.clusterCullingReflectionProbe);
-                            ctx.cmd.SetGlobalTexture(
-                                ClusterCullingReflectionProbePass.PropertyIDs.reflectionProbeAtlas,
-                                data.reflectionProbeAtlas);
-                            ctx.cmd.SetGlobalBuffer(
-                                ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeMaskBuffer,
-                                data.probeMaskBuffer);
-                            ctx.cmd.SetGlobalBuffer(
-                                ClusterCullingReflectionProbePass.PropertyIDs.clusterCullingReflectionProbeDatasBuffer,
-                                data.probeDatasBuffer);
-                        }
-                        else
-                        {
-                            ctx.cmd.DisableShaderKeyword(GlobalKeywords.clusterCullingReflectionProbe);
-                        }
-
-                        // 簇剔除光照 shader keyword + 全局参数
-                        if (data.hasLightMask)
-                        {
-                            ctx.cmd.EnableShaderKeyword(
-                                GlobalKeywords.clusterCullingLight);
-                            ctx.cmd.SetGlobalBuffer(
-                                ClusterCullingLightPass.PropertyIDs.clusterCullingLightMaskBuffer,
-                                data.lightMaskBuffer);
-                        }
-
-                        // 光照数据缓冲（仅 slot 连接时设置 ——
-                        // 避免在无光照 pass 时绑定无效句柄）
-                        if (data.hasLightDatas)
-                        {
-                            ctx.cmd.SetGlobalBuffer(
-                                BuildLightDataPass.PropertyIDs.LightDatasBuffer,
-                                data.lightDatasBuffer);
-                        }
+                        BindConnectedProducerGlobals(ctx.cmd);
                     }
 
                     ctx.cmd.DrawRendererList(data.rendererList);
@@ -435,6 +380,38 @@ namespace HN.HNRP
         }
 
         // ── 辅助 ──
+
+        /// <summary>
+        /// 遍历本 pass 已连接的输入 slot，对其属主 pass 中实现
+        /// <see cref="IGlobalShaderResource"/> 者调用一次全局资源绑定。
+        /// </summary>
+        /// <remarks>
+        /// 同一生产者可能经多个输入 slot 连接（如探针的图集 / 掩码 / 数据），
+        /// 用复用的去重列表保证只绑定一次，渲染循环零分配。
+        /// 连接存在即调用（不要求句柄有效），使生产者在未产出时能主动关闭 keyword。
+        /// </remarks>
+        /// <param name="cmd">接收绑定命令的命令缓冲。</param>
+        private void BindConnectedProducerGlobals(CommandBuffer cmd)
+        {
+            boundProviders.Clear();
+
+            IReadOnlyList<PassSlot> slots = Slots;
+            for (int i = 0; i < slots.Count; i++)
+            {
+                PassSlot slot = slots[i];
+                if (slot.Direction != SlotDirection.Input || !slot.IsConnected)
+                {
+                    continue;
+                }
+
+                if (slot.ConnectedOutput?.OwnerPass is IGlobalShaderResource provider
+                    && !boundProviders.Contains(provider))
+                {
+                    boundProviders.Add(provider);
+                    provider.BindGlobalShaderResources(cmd);
+                }
+            }
+        }
 
         /// <summary>
         /// 从 <see cref="RendererListParams"/> 本地创建渲染器列表。
@@ -474,49 +451,9 @@ namespace HN.HNRP
             public TextureHandle depthTarget;
 
             /// <summary>
-            /// 光照数据计算缓冲句柄。
-            /// </summary>
-            public ComputeBufferHandle lightDatasBuffer;
-
-            /// <summary>
-            /// 反射探针图集纹理句柄。
-            /// </summary>
-            public TextureHandle reflectionProbeAtlas;
-
-            /// <summary>
-            /// 簇剔除反射探针掩码缓冲句柄。
-            /// </summary>
-            public ComputeBufferHandle probeMaskBuffer;
-
-            /// <summary>
-            /// 簇剔除反射探针数据缓冲句柄。
-            /// </summary>
-            public ComputeBufferHandle probeDatasBuffer;
-
-            /// <summary>
-            /// 簇剔除光照掩码缓冲句柄。
-            /// </summary>
-            public ComputeBufferHandle lightMaskBuffer;
-
-            /// <summary>
             /// 渲染器列表句柄。
             /// </summary>
             public RendererListHandle rendererList;
-
-            /// <summary>
-            /// 是否启用探针 keyword + 全局参数。
-            /// </summary>
-            public bool enableProbeKeyword;
-
-            /// <summary>
-            /// 是否绑定了簇剔除光照掩码缓冲。
-            /// </summary>
-            public bool hasLightMask;
-
-            /// <summary>
-            /// 是否绑定了光照数据缓冲。
-            /// </summary>
-            public bool hasLightDatas;
 
             /// <summary>
             /// 本 pass 相机的视图矩阵。

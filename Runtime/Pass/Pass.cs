@@ -52,6 +52,12 @@ namespace HN.HNRP
         private readonly Dictionary<string, PassSlot> slots = new();
 
         /// <summary>
+        /// <see cref="SetupSlots"/> 中声明本 pass 全部 slot 的注册顺序列表，
+        /// 供需要遍历 slot 的消费者（如全局资源绑定）使用。
+        /// </summary>
+        private readonly List<PassSlot> slotList = new();
+
+        /// <summary>
         /// 初始化 <see cref="Pass"/> 的新实例。
         /// </summary>
         /// <param name="passName">
@@ -97,7 +103,20 @@ namespace HN.HNRP
         {
             slots[slot.SlotName] = slot;
             slot.OwnerPass = this;
+            if (!slotList.Contains(slot))
+            {
+                slotList.Add(slot);
+            }
         }
+
+        /// <summary>
+        /// 按注册顺序枚举本 pass 的全部 slot。
+        /// </summary>
+        /// <remarks>
+        /// 返回具体 <see cref="IReadOnlyList{T}"/>，消费者可用索引访问避免枚举器装箱
+        /// （渲染循环零 GC）。仅供读取，调用方不得修改。
+        /// </remarks>
+        public IReadOnlyList<PassSlot> Slots => slotList;
 
         /// <summary>
         /// 按名称取 slot；未注册该名称时返回 <c>null</c>。
